@@ -1,5 +1,5 @@
 # Simple test to check HttpResponse building
-import "../src/http/response"
+import "../src/response"
 
 fn main(): void =>
     print("Creating response...\n")

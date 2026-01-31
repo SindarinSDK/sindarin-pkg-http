@@ -2,7 +2,7 @@
 # tests/test_router.sn - HTTP Router Test
 # ==============================================================================
 
-import "../src/http/router"
+import "../src/router"
 
 var testsPassed: int = 0
 var testsFailed: int = 0

@@ -1,11 +1,11 @@
 # ==============================================================================
-# http/server.sn - HTTP Server
+# server.sn - HTTP Server
 # ==============================================================================
 # A multithreaded HTTP/1.1 server built on TCP sockets.
 #
 # Usage:
-#   import "http/server"
-#   import "http/router"
+#   import "server"
+#   import "router"
 #
 #   fn homeHandler(req: HttpRequest): HttpResponse =>
 #       return HttpResponse.ok().html("<h1>Hello World</h1>")
@@ -17,7 +17,7 @@
 #   server.listen(8080)  # Blocks and serves requests
 # ==============================================================================
 
-import "../../.sn/sindarin-pkg-sdk/src/net/tcp"
+import "../.sn/sindarin-pkg-sdk/src/net/tcp"
 import "request"
 import "response"
 import "router"

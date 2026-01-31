@@ -6,7 +6,7 @@
 # Run: ./tests/test_status
 # ==============================================================================
 
-import "../src/http/status"
+import "../src/status"
 
 # Test counters must be declared before use
 var testsPassed: int = 0

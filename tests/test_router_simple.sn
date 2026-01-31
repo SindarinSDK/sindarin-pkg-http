@@ -1,7 +1,7 @@
 # Test router without threads
-import "../src/http/router"
-import "../src/http/request"
-import "../src/http/response"
+import "../src/router"
+import "../src/request"
+import "../src/response"
 
 fn homeHandler(req: HttpRequest): HttpResponse =>
     print($"Handler called! Path: {req.path}\n")

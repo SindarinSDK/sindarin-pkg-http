@@ -1,10 +1,10 @@
 # ==============================================================================
-# http/request.sn - HTTP Request Parser
+# request.sn - HTTP Request Parser
 # ==============================================================================
 # Parses HTTP/1.1 requests from raw data.
 #
 # Usage:
-#   import "http/request"
+#   import "request"
 #
 #   var req: HttpRequest = HttpRequest.parse(rawData)
 #   print($"Method: {req.method}\n")

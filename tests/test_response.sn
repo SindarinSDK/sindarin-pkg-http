@@ -2,7 +2,7 @@
 # tests/test_response.sn - HTTP Response Builder Test
 # ==============================================================================
 
-import "../src/http/response"
+import "../src/response"
 
 var testsPassed: int = 0
 var testsFailed: int = 0

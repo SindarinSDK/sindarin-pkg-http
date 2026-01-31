@@ -1,7 +1,7 @@
 # Test response without calling text() which adds headers
-import "../src/http/router"
-import "../src/http/request"
-import "../src/http/response"
+import "../src/router"
+import "../src/request"
+import "../src/response"
 
 fn homeHandler(req: HttpRequest): HttpResponse =>
     # Just return ok() without text() - no headers added

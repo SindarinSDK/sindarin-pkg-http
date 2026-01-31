@@ -32,8 +32,8 @@ sn install
 ## Quick Start
 
 ```sindarin
-import "http/server"
-import "http/router"
+import "server"
+import "router"
 
 fn homeHandler(req: HttpRequest): HttpResponse =>
     return HttpResponse.ok().html("<h1>Hello World!</h1>")
@@ -49,7 +49,7 @@ fn main(): void =>
 Or use the quick-start helper:
 
 ```sindarin
-import "http/server"
+import "server"
 
 fn handler(req: HttpRequest): HttpResponse =>
     return HttpResponse.ok().text($"Hello! You requested: {req.path}")
@@ -60,12 +60,12 @@ fn main(): void =>
 
 ## Modules
 
-### http/status
+### status
 
 HTTP status codes and helper functions.
 
 ```sindarin
-import "http/status"
+import "status"
 
 # Status code constants
 var code: int = STATUS_OK           # 200
@@ -81,12 +81,12 @@ isServerError(500)  # true
 isError(400)        # true (4xx or 5xx)
 ```
 
-### http/request
+### request
 
 Parse and inspect HTTP requests.
 
 ```sindarin
-import "http/request"
+import "request"
 
 var req: HttpRequest = HttpRequest.parse(rawData)
 
@@ -114,12 +114,12 @@ req.isPut()
 req.isDelete()
 ```
 
-### http/response
+### response
 
 Build HTTP responses with a fluent API.
 
 ```sindarin
-import "http/response"
+import "response"
 
 # Factory methods
 var res: HttpResponse = HttpResponse.ok()           # 200
@@ -144,12 +144,12 @@ var httpString: str = res.toString()
 var httpBytes: byte[] = res.toBytes()
 ```
 
-### http/router
+### router
 
 Route requests to handlers.
 
 ```sindarin
-import "http/router"
+import "router"
 
 var router: Router = Router.new()
 
@@ -175,12 +175,12 @@ router.setMethodNotAllowedHandler(custom405Handler)
 var response: HttpResponse = router.handle(request)
 ```
 
-### http/server
+### server
 
 Full HTTP server with TCP networking.
 
 ```sindarin
-import "http/server"
+import "server"
 
 var server: HttpServer = HttpServer.new(router)
 
@@ -204,8 +204,8 @@ stats.totalErrors
 ### RESTful API
 
 ```sindarin
-import "http/server"
-import "http/router"
+import "server"
+import "router"
 
 fn getUsers(req: HttpRequest): HttpResponse =>
     return HttpResponse.ok().json("[{\"id\": 1, \"name\": \"Alice\"}]")
@@ -232,8 +232,8 @@ fn main(): void =>
 ### Static File Server
 
 ```sindarin
-import "http/server"
-import "http/router"
+import "server"
+import "router"
 
 fn serveFile(req: HttpRequest): HttpResponse =>
     var path: str = req.path
@@ -274,12 +274,11 @@ sn examples/hello_server.sn -o bin/hello_server
 ```
 sindarin-pkg-http/
 ├── src/
-│   └── http/
-│       ├── status.sn      # HTTP status codes
-│       ├── request.sn     # Request parsing
-│       ├── response.sn    # Response building
-│       ├── router.sn      # URL routing
-│       └── server.sn      # TCP server
+│   ├── status.sn      # HTTP status codes
+│   ├── request.sn     # Request parsing
+│   ├── response.sn    # Response building
+│   ├── router.sn      # URL routing
+│   └── server.sn      # TCP server
 ├── tests/
 │   ├── test_status.sn
 │   ├── test_request.sn

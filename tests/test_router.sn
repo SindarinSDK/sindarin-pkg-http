@@ -1,0 +1,142 @@
+# ==============================================================================
+# tests/test_router.sn - HTTP Router Test
+# ==============================================================================
+
+import "../src/http/router"
+
+var testsPassed: int = 0
+var testsFailed: int = 0
+
+fn check(condition: bool, message: str): void =>
+    if !condition =>
+        print($"  FAIL: {message}\n")
+        testsFailed++
+    else =>
+        testsPassed++
+
+# Test handlers
+fn homeHandler(req: HttpRequest): HttpResponse =>
+    return HttpResponse.ok().text("Home")
+
+fn userHandler(req: HttpRequest): HttpResponse =>
+    return HttpResponse.ok().text("User")
+
+fn apiHandler(req: HttpRequest): HttpResponse =>
+    return HttpResponse.ok().json("{\"api\": true}")
+
+fn catchAllHandler(req: HttpRequest): HttpResponse =>
+    return HttpResponse.ok().text("Catch All")
+
+fn main(): void =>
+    print("Testing HTTP Router\n")
+    print("===================\n\n")
+
+    testRouteRegistration()
+    testBasicRouting()
+    testPathMatching()
+    testMethodMatching()
+    testWildcards()
+
+    print($"\nTests passed: {testsPassed}, failed: {testsFailed}\n")
+    if testsFailed == 0 =>
+        print("All router tests passed!\n")
+    else =>
+        print("Some tests failed!\n")
+
+fn testRouteRegistration(): void =>
+    print("Testing route registration...\n")
+
+    var router: Router = Router.new()
+    router.get("/", homeHandler)
+    router.post("/users", userHandler)
+    router.put("/users", userHandler)
+    router.delete("/users", userHandler)
+    router.patch("/users", userHandler)
+
+    check(router.routes.length == 5, "Should have 5 routes registered")
+
+    print("  Route registration OK\n")
+
+fn testBasicRouting(): void =>
+    print("Testing basic routing...\n")
+
+    var router: Router = Router.new()
+    router.get("/", homeHandler)
+    router.get("/users", userHandler)
+    router.get("/api", apiHandler)
+
+    var homeReq: HttpRequest = HttpRequest.parse("GET / HTTP/1.1\r\n\r\n")
+    var homeRes: HttpResponse = router.handle(homeReq)
+    check(homeRes.statusCode == 200, "Home route should return 200")
+    check(homeRes.body == "Home", "Home route should return 'Home'")
+
+    var userReq: HttpRequest = HttpRequest.parse("GET /users HTTP/1.1\r\n\r\n")
+    var userRes: HttpResponse = router.handle(userReq)
+    check(userRes.statusCode == 200, "User route should return 200")
+    check(userRes.body == "User", "User route should return 'User'")
+
+    var apiReq: HttpRequest = HttpRequest.parse("GET /api HTTP/1.1\r\n\r\n")
+    var apiRes: HttpResponse = router.handle(apiReq)
+    check(apiRes.statusCode == 200, "API route should return 200")
+
+    print("  Basic routing OK\n")
+
+fn testPathMatching(): void =>
+    print("Testing path matching...\n")
+
+    # Test normalization (trailing slashes)
+    check(matchPath("/users", "/users") == true, "Exact match should work")
+    check(matchPath("/users", "/users/") == true, "Trailing slash should match")
+    check(matchPath("/users/", "/users") == true, "Pattern trailing slash should match")
+
+    # Test non-matches
+    check(matchPath("/users", "/posts") == false, "Different paths should not match")
+    check(matchPath("/users", "/users/123") == false, "Longer path should not match exact")
+
+    print("  Path matching OK\n")
+
+fn testMethodMatching(): void =>
+    print("Testing method matching...\n")
+
+    var router: Router = Router.new()
+    router.get("/resource", homeHandler)
+    router.post("/resource", userHandler)
+
+    var getReq: HttpRequest = HttpRequest.parse("GET /resource HTTP/1.1\r\n\r\n")
+    var getRes: HttpResponse = router.handle(getReq)
+    check(getRes.body == "Home", "GET should route to homeHandler")
+
+    var postReq: HttpRequest = HttpRequest.parse("POST /resource HTTP/1.1\r\n\r\n")
+    var postRes: HttpResponse = router.handle(postReq)
+    check(postRes.body == "User", "POST should route to userHandler")
+
+    # Test method not allowed
+    var putReq: HttpRequest = HttpRequest.parse("PUT /resource HTTP/1.1\r\n\r\n")
+    var putRes: HttpResponse = router.handle(putReq)
+    check(putRes.statusCode == 405, "PUT should return 405 Method Not Allowed")
+
+    print("  Method matching OK\n")
+
+fn testWildcards(): void =>
+    print("Testing wildcard routes...\n")
+
+    var router: Router = Router.new()
+    router.get("/users/*", userHandler)
+    router.get("/api/**", apiHandler)
+
+    # Single wildcard
+    var singleReq: HttpRequest = HttpRequest.parse("GET /users/123 HTTP/1.1\r\n\r\n")
+    var singleRes: HttpResponse = router.handle(singleReq)
+    check(singleRes.statusCode == 200, "Single wildcard should match /users/123")
+
+    # Double wildcard
+    var doubleReq: HttpRequest = HttpRequest.parse("GET /api/v1/users/123 HTTP/1.1\r\n\r\n")
+    var doubleRes: HttpResponse = router.handle(doubleReq)
+    check(doubleRes.statusCode == 200, "Double wildcard should match deep paths")
+
+    # 404 for non-matching
+    var notFoundReq: HttpRequest = HttpRequest.parse("GET /unknown HTTP/1.1\r\n\r\n")
+    var notFoundRes: HttpResponse = router.handle(notFoundReq)
+    check(notFoundRes.statusCode == 404, "Unknown path should return 404")
+
+    print("  Wildcard routes OK\n")

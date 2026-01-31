@@ -1,7 +1,0 @@
-# Minimal test for import issues
-import "../src/http/request"
-
-fn main(): void =>
-    print("Testing minimal import...\n")
-    var req: HttpRequest = HttpRequest.parse("GET / HTTP/1.1\r\n\r\n")
-    print($"Method: {req.method}\n")

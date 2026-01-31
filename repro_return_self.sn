@@ -1,0 +1,13 @@
+# Reproduction: Cannot return self from instance methods
+
+struct Builder =>
+    value: int
+
+    fn setValue(v: int): Builder =>
+        self.value = v
+        return self
+
+fn main(): void =>
+    var b: Builder = Builder { value: 0 }
+    b = b.setValue(10)
+    print($"value={b.value}\n")

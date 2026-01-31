@@ -1,0 +1,140 @@
+# ==============================================================================
+# tests/test_response.sn - HTTP Response Builder Test
+# ==============================================================================
+# Tests the HTTP response builder.
+# Compile: sn tests/test_response.sn -o tests/test_response
+# Run: ./tests/test_response
+# ==============================================================================
+
+import "../src/http/response"
+
+# Test counters must be declared before use
+var testsPassed: int = 0
+var testsFailed: int = 0
+
+# Check function must be declared before main
+fn check(condition: bool, message: str): void =>
+    if !condition =>
+        print($"  FAIL: {message}\n")
+        testsFailed++
+    else =>
+        testsPassed++
+
+fn main(): void =>
+    print("Testing HTTP Response Builder\n")
+    print("==============================\n\n")
+
+    testBasicResponse()
+    testStatusFactories()
+    testHeaders()
+    testContentTypes()
+    testSerialization()
+
+    print($"\nTests passed: {testsPassed}, failed: {testsFailed}\n")
+    if testsFailed == 0 =>
+        print("All response tests passed!\n")
+    else =>
+        print("Some tests failed!\n")
+
+fn testBasicResponse(): void =>
+    print("Testing basic response creation...\n")
+
+    var res: HttpResponse = HttpResponse.new(200)
+    check(res.statusCode == 200, "Status code should be 200")
+    check(res.statusText == "OK", "Status text should be OK")
+    check(res.version == "HTTP/1.1", "Version should be HTTP/1.1")
+
+    var res404: HttpResponse = HttpResponse.new(404)
+    check(res404.statusCode == 404, "Status code should be 404")
+    check(res404.statusText == "Not Found", "Status text should be Not Found")
+
+    print("  Basic response OK\n")
+
+fn testStatusFactories(): void =>
+    print("Testing status factory methods...\n")
+
+    var ok: HttpResponse = HttpResponse.ok()
+    check(ok.statusCode == 200, "ok() should return 200")
+
+    var created: HttpResponse = HttpResponse.created()
+    check(created.statusCode == 201, "created() should return 201")
+
+    var noContent: HttpResponse = HttpResponse.noContent()
+    check(noContent.statusCode == 204, "noContent() should return 204")
+
+    var badRequest: HttpResponse = HttpResponse.badRequest()
+    check(badRequest.statusCode == 400, "badRequest() should return 400")
+
+    var unauthorized: HttpResponse = HttpResponse.unauthorized()
+    check(unauthorized.statusCode == 401, "unauthorized() should return 401")
+
+    var forbidden: HttpResponse = HttpResponse.forbidden()
+    check(forbidden.statusCode == 403, "forbidden() should return 403")
+
+    var notFound: HttpResponse = HttpResponse.notFound()
+    check(notFound.statusCode == 404, "notFound() should return 404")
+
+    var methodNotAllowed: HttpResponse = HttpResponse.methodNotAllowed()
+    check(methodNotAllowed.statusCode == 405, "methodNotAllowed() should return 405")
+
+    var serverError: HttpResponse = HttpResponse.internalServerError()
+    check(serverError.statusCode == 500, "internalServerError() should return 500")
+
+    print("  Status factories OK\n")
+
+fn testHeaders(): void =>
+    print("Testing header methods...\n")
+
+    var res: HttpResponse = HttpResponse.ok()
+    res.setHeader("X-Custom", "value1")
+    check(res.hasHeader("X-Custom") == true, "Should have X-Custom header")
+    check(res.getHeader("X-Custom") == "value1", "X-Custom should be value1")
+
+    # Test case-insensitive access
+    check(res.getHeader("x-custom") == "value1", "Header access should be case-insensitive")
+
+    # Test setHeader replaces existing
+    res.setHeader("X-Custom", "value2")
+    check(res.getHeader("X-Custom") == "value2", "setHeader should replace existing")
+
+    # Test addHeader adds duplicate
+    res.addHeader("X-Multi", "a")
+    res.addHeader("X-Multi", "b")
+    check(res.hasHeader("X-Multi") == true, "Should have X-Multi header")
+
+    print("  Header methods OK\n")
+
+fn testContentTypes(): void =>
+    print("Testing content type helpers...\n")
+
+    var htmlRes: HttpResponse = HttpResponse.ok()
+    htmlRes.html("<h1>Hello</h1>")
+    check(htmlRes.getHeader("Content-Type") == "text/html; charset=utf-8", "html() should set Content-Type")
+    check(htmlRes.body == "<h1>Hello</h1>", "html() should set body")
+
+    var textRes: HttpResponse = HttpResponse.ok()
+    textRes.text("Hello World")
+    check(textRes.getHeader("Content-Type") == "text/plain; charset=utf-8", "text() should set Content-Type")
+    check(textRes.body == "Hello World", "text() should set body")
+
+    var jsonRes: HttpResponse = HttpResponse.ok()
+    jsonRes.json("{\"key\": \"value\"}")
+    check(jsonRes.getHeader("Content-Type") == "application/json; charset=utf-8", "json() should set Content-Type")
+    check(jsonRes.body == "{\"key\": \"value\"}", "json() should set body")
+
+    print("  Content type helpers OK\n")
+
+fn testSerialization(): void =>
+    print("Testing response serialization...\n")
+
+    var res: HttpResponse = HttpResponse.ok()
+    res.text("Hello")
+    var output: str = res.toString()
+
+    check(output.contains("HTTP/1.1 200 OK"), "Should contain status line")
+    check(output.contains("Content-Type: text/plain"), "Should contain Content-Type")
+    check(output.contains("Content-Length: 5"), "Should contain Content-Length")
+    check(output.contains("Hello"), "Should contain body")
+    check(output.contains("\r\n\r\n"), "Should have header/body separator")
+
+    print("  Serialization OK\n")

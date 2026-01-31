@@ -68,8 +68,8 @@ Additionally, error messages show incorrect file names and line numbers.
 ## 2. Type Aliases for Function Types Not Supported
 
 **Severity:** Medium
-**Status:** Requires verbose inline types
-**Reproduction Status:** ✅ CONFIRMED - reproduction fails as expected
+**Status:** ✅ FIXED
+**Reproduction Status:** ✅ FIXED - function type aliases now supported
 
 ### Description
 
@@ -109,8 +109,8 @@ error: Expected 'opaque' or 'native fn' after '=' in type declaration (got 'fn')
 ## 3. Reserved Keyword `any` Blocks Method Names
 
 **Severity:** Low
-**Status:** Potential bug - keyword reservation too broad
-**Reproduction Status:** ✅ CONFIRMED - reproduction fails as expected
+**Status:** ✅ FIXED
+**Reproduction Status:** ✅ FIXED - `any` can now be used as method name
 
 ### Description
 
@@ -150,8 +150,8 @@ error: Expected method name (got 'any')
 ## 4. `char` Type Has No Methods
 
 **Severity:** Medium
-**Status:** Limits string manipulation capabilities
-**Reproduction Status:** ✅ CONFIRMED - reproduction fails as expected
+**Status:** ✅ FIXED
+**Reproduction Status:** ✅ FIXED - char now has: toString, toUpper, toLower, toInt, isDigit, isAlpha, isWhitespace, isAlnum
 
 ### Description
 
@@ -195,8 +195,8 @@ error: Type 'char' has no member 'toInt'
 ## 5. `str.split()` Lacks Limit Parameter
 
 **Severity:** Low
-**Status:** Feature request
-**Reproduction Status:** ✅ CONFIRMED - reproduction fails as expected
+**Status:** ✅ FIXED
+**Reproduction Status:** ✅ FIXED - split() now accepts optional limit parameter: split(delim, limit)
 
 ### Description
 
@@ -330,8 +330,8 @@ error: Expected ';' or newline after variable declaration (got '{')
 ## 8. Method Chaining Across Lines Fails
 
 **Severity:** Medium
-**Status:** Formatting constraint
-**Reproduction Status:** ✅ CONFIRMED - reproduction fails as expected
+**Status:** ✅ FIXED
+**Reproduction Status:** ✅ FIXED - both same-indent and indented continuation now work
 
 ### Description
 
@@ -473,25 +473,26 @@ error: Unknown field 'path' in struct 'Request'
 
 ## Summary Table
 
-| # | Issue | Severity | Workaround | Repro Status |
-|---|-------|----------|------------|--------------|
+| # | Issue | Severity | Workaround | Status |
+|---|-------|----------|------------|--------|
 | 1 | Module import collisions | High | Single-file only | ⚠️ Needs complex case |
-| 2 | No function type aliases | Medium | Inline full types | ✅ Confirmed |
-| 3 | `any` blocks method names | Low | Use `all` instead | ✅ Confirmed |
-| 4 | No `char` methods | Medium | Use string methods | ✅ Confirmed |
-| 5 | `split()` no limit param | Low | Manual handling | ✅ Confirmed |
+| 2 | No function type aliases | Medium | N/A | ✅ **FIXED** |
+| 3 | `any` blocks method names | Low | N/A | ✅ **FIXED** |
+| 4 | No `char` methods | Medium | N/A | ✅ **FIXED** |
+| 5 | `split()` no limit param | Low | N/A | ✅ **FIXED** |
 | 6 | Multi-line struct literals | Medium | Single line or variable | ⚠️ Needs complex case |
-| 7 | Struct ordering required | Low | Define before use | ✅ Confirmed (diff error) |
-| 8 | Multi-line method chaining | Medium | Single line or sequential | ✅ Confirmed |
+| 7 | Struct ordering required | Low | Define before use | ⚠️ Open |
+| 8 | Multi-line method chaining | Medium | N/A | ✅ **FIXED** |
 | 9 | Wrong file/line in errors | Medium | None | ⚠️ Depends on #1 |
 | 10 | Struct fields not found (imports) | High | Single-file only | ⚠️ Needs complex case |
 
 ---
 
-## Reproduction Status Legend
+## Status Legend
 
-- ✅ **Confirmed**: The minimal reproduction demonstrates the issue
+- ✅ **FIXED**: Issue has been resolved in the compiler
 - ⚠️ **Needs complex case**: Simple reproduction passes; issue only manifests in complex multi-file scenarios
+- ⚠️ **Open**: Issue confirmed but not yet fixed
 
 For issues marked with ⚠️, the bugs were observed during the HTTP server implementation but could not be isolated into minimal test cases. These may require:
 - More complex module hierarchies (3+ levels of imports)

@@ -1,8 +1,0 @@
-type Handler = fn(int): int
-
-fn apply(h: Handler, x: int): int =>
-    return h(x)
-
-fn main(): void =>
-    var double: Handler = fn(n: int): int => n * 2
-    print($"{apply(double, 5)}\n")

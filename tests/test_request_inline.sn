@@ -1,0 +1,149 @@
+# Inline test - copy the request parsing code inline
+# This avoids import issues by keeping everything in one file
+
+# ==============================================================================
+# Header Structure
+# ==============================================================================
+
+struct Header =>
+    name: str
+    value: str
+
+# ==============================================================================
+# HttpRequest Structure
+# ==============================================================================
+
+struct HttpRequest =>
+    method: str
+    path: str
+    query: str
+    version: str
+    headers: Header[]
+    body: str
+    raw: str
+
+    # ==========================================================================
+    # Static Factory Methods
+    # ==========================================================================
+
+    static fn parse(data: str): HttpRequest =>
+        var req: HttpRequest = HttpRequest { method: "", path: "", query: "", version: "", headers: {}, body: "", raw: data }
+
+        var normalized: str = data.replace("\r\n", "\n")
+        var lines: str[] = normalized.split("\n")
+
+        if lines.length == 0 =>
+            return req
+
+        var requestLine: str = lines[0]
+        var parts: str[] = requestLine.split(" ")
+
+        if parts.length >= 1 =>
+            req.method = parts[0]
+
+        if parts.length >= 2 =>
+            var fullPath: str = parts[1]
+            var qIndex: int = fullPath.indexOf("?")
+            if qIndex >= 0 =>
+                req.path = fullPath.substring(0, qIndex)
+                req.query = fullPath.substring(qIndex + 1, fullPath.length)
+            else =>
+                req.path = fullPath
+
+        if parts.length >= 3 =>
+            req.version = parts[2]
+
+        var headersDone: bool = false
+        var bodyStartIndex: int = 1
+
+        for var i: int = 1; i < lines.length; i++ =>
+            var line: str = lines[i]
+
+            if line.trim() == "" =>
+                headersDone = true
+                bodyStartIndex = i + 1
+                break
+
+            var colonIndex: int = line.indexOf(":")
+            if colonIndex > 0 =>
+                var name: str = line.substring(0, colonIndex).trim()
+                var value: str = line.substring(colonIndex + 1, line.length).trim()
+                req.headers.push(Header { name: name, value: value })
+
+        if headersDone && bodyStartIndex < lines.length =>
+            var bodyLines: str[] = {}
+            for var i: int = bodyStartIndex; i < lines.length; i++ =>
+                bodyLines.push(lines[i])
+            req.body = bodyLines.join("\n")
+
+        return req
+
+    # ==========================================================================
+    # Header Access Methods
+    # ==========================================================================
+
+    fn getHeader(name: str): str =>
+        var lowerName: str = name.toLower()
+        for h in self.headers =>
+            if h.name.toLower() == lowerName =>
+                return h.value
+        return ""
+
+    fn hasHeader(name: str): bool =>
+        var lowerName: str = name.toLower()
+        for h in self.headers =>
+            if h.name.toLower() == lowerName =>
+                return true
+        return false
+
+    # ==========================================================================
+    # Method Helpers
+    # ==========================================================================
+
+    fn isGet(): bool =>
+        return self.method == "GET"
+
+    fn isPost(): bool =>
+        return self.method == "POST"
+
+# ==============================================================================
+# Test Code
+# ==============================================================================
+
+var testsPassed: int = 0
+var testsFailed: int = 0
+
+fn check(condition: bool, message: str): void =>
+    if !condition =>
+        print($"  FAIL: {message}\n")
+        testsFailed++
+    else =>
+        testsPassed++
+
+fn main(): void =>
+    print("Testing HTTP Request Parsing (Inline)\n")
+    print("=====================================\n\n")
+
+    print("Testing basic request parsing...\n")
+
+    var rawRequest: str = "GET /api/users HTTP/1.1\r\nHost: localhost:8080\r\n\r\n"
+    var req: HttpRequest = HttpRequest.parse(rawRequest)
+
+    check(req.method == "GET", "Method should be GET")
+    check(req.path == "/api/users", "Path should be /api/users")
+    check(req.version == "HTTP/1.1", "Version should be HTTP/1.1")
+    check(req.isGet() == true, "Should be GET request")
+    check(req.isPost() == false, "Should not be POST request")
+
+    print("  Basic parsing OK\n")
+
+    print("Testing headers...\n")
+    check(req.hasHeader("Host") == true, "Should have Host header")
+    check(req.getHeader("Host") == "localhost:8080", "Host should be localhost:8080")
+    print("  Headers OK\n")
+
+    print($"\nTests passed: {testsPassed}, failed: {testsFailed}\n")
+    if testsFailed == 0 =>
+        print("All request tests passed!\n")
+    else =>
+        print("Some tests failed!\n")

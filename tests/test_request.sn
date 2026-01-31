@@ -1,0 +1,137 @@
+# ==============================================================================
+# tests/test_request.sn - HTTP Request Parsing Test
+# ==============================================================================
+# Tests the HTTP request parser.
+# Compile: sn tests/test_request.sn -o tests/test_request
+# Run: ./tests/test_request
+# ==============================================================================
+
+import "../src/http/request"
+
+# Test counters must be declared before use
+var testsPassed: int = 0
+var testsFailed: int = 0
+
+# Check function must be declared before main
+fn check(condition: bool, message: str): void =>
+    if !condition =>
+        print($"  FAIL: {message}\n")
+        testsFailed++
+    else =>
+        testsPassed++
+
+fn main(): void =>
+    print("Testing HTTP Request Parsing\n")
+    print("============================\n\n")
+
+    testBasicParsing()
+    testHeaders()
+    testQueryParams()
+    testMethodHelpers()
+    testBodyParsing()
+
+    print($"\nTests passed: {testsPassed}, failed: {testsFailed}\n")
+    if testsFailed == 0 =>
+        print("All request tests passed!\n")
+    else =>
+        print("Some tests failed!\n")
+
+fn testBasicParsing(): void =>
+    print("Testing basic request parsing...\n")
+
+    var rawRequest: str = "GET /api/users HTTP/1.1\r\nHost: localhost:8080\r\n\r\n"
+    var req: HttpRequest = HttpRequest.parse(rawRequest)
+
+    check(req.method == "GET", "Method should be GET")
+    check(req.path == "/api/users", "Path should be /api/users")
+    check(req.version == "HTTP/1.1", "Version should be HTTP/1.1")
+
+    print("  Basic parsing OK\n")
+
+fn testHeaders(): void =>
+    print("Testing header parsing...\n")
+
+    var rawRequest: str = "POST /login HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 25\r\n\r\n"
+    var req: HttpRequest = HttpRequest.parse(rawRequest)
+
+    check(req.hasHeader("Host") == true, "Should have Host header")
+    check(req.hasHeader("Content-Type") == true, "Should have Content-Type header")
+    check(req.hasHeader("X-Missing") == false, "Should not have X-Missing header")
+
+    check(req.getHeader("Host") == "localhost", "Host should be localhost")
+    check(req.getHeader("Content-Type") == "application/json", "Content-Type should be application/json")
+    check(req.getHeader("Content-Length") == "25", "Content-Length should be 25")
+    check(req.getHeader("X-Missing") == "", "Missing header should return empty string")
+
+    # Test case-insensitive header access
+    check(req.getHeader("host") == "localhost", "Header access should be case-insensitive (lowercase)")
+    check(req.getHeader("HOST") == "localhost", "Header access should be case-insensitive (uppercase)")
+    check(req.getHeader("content-type") == "application/json", "Header access should be case-insensitive")
+
+    check(req.contentType() == "application/json", "contentType() should return Content-Type")
+    check(req.contentLength() == 25, "contentLength() should return 25")
+
+    print("  Header parsing OK\n")
+
+fn testQueryParams(): void =>
+    print("Testing query parameter parsing...\n")
+
+    var rawRequest: str = "GET /search?q=hello&page=2&filter=active HTTP/1.1\r\nHost: localhost\r\n\r\n"
+    var req: HttpRequest = HttpRequest.parse(rawRequest)
+
+    check(req.path == "/search", "Path should not include query string")
+    check(req.query == "q=hello&page=2&filter=active", "Query string should be parsed")
+
+    check(req.hasQueryParam("q") == true, "Should have q param")
+    check(req.hasQueryParam("page") == true, "Should have page param")
+    check(req.hasQueryParam("missing") == false, "Should not have missing param")
+
+    check(req.queryParam("q") == "hello", "q param should be 'hello'")
+    check(req.queryParam("page") == "2", "page param should be '2'")
+    check(req.queryParam("filter") == "active", "filter param should be 'active'")
+    check(req.queryParam("missing") == "", "missing param should return empty string")
+
+    print("  Query parameter parsing OK\n")
+
+fn testMethodHelpers(): void =>
+    print("Testing method helpers...\n")
+
+    var getReq: HttpRequest = HttpRequest.parse("GET / HTTP/1.1\r\n\r\n")
+    check(getReq.isGet() == true, "Should be GET")
+    check(getReq.isPost() == false, "Should not be POST")
+
+    var postReq: HttpRequest = HttpRequest.parse("POST / HTTP/1.1\r\n\r\n")
+    check(postReq.isPost() == true, "Should be POST")
+    check(postReq.isGet() == false, "Should not be GET")
+
+    var putReq: HttpRequest = HttpRequest.parse("PUT / HTTP/1.1\r\n\r\n")
+    check(putReq.isPut() == true, "Should be PUT")
+
+    var deleteReq: HttpRequest = HttpRequest.parse("DELETE / HTTP/1.1\r\n\r\n")
+    check(deleteReq.isDelete() == true, "Should be DELETE")
+
+    var patchReq: HttpRequest = HttpRequest.parse("PATCH / HTTP/1.1\r\n\r\n")
+    check(patchReq.isPatch() == true, "Should be PATCH")
+
+    var headReq: HttpRequest = HttpRequest.parse("HEAD / HTTP/1.1\r\n\r\n")
+    check(headReq.isHead() == true, "Should be HEAD")
+
+    var optionsReq: HttpRequest = HttpRequest.parse("OPTIONS / HTTP/1.1\r\n\r\n")
+    check(optionsReq.isOptions() == true, "Should be OPTIONS")
+
+    print("  Method helpers OK\n")
+
+fn testBodyParsing(): void =>
+    print("Testing body parsing...\n")
+
+    var rawRequest: str = "POST /api/data HTTP/1.1\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n\r\nHello World"
+    var req: HttpRequest = HttpRequest.parse(rawRequest)
+
+    check(req.hasBody() == true, "Request should have body")
+    check(req.body == "Hello World", "Body should be 'Hello World'")
+
+    var noBodyReq: HttpRequest = HttpRequest.parse("GET / HTTP/1.1\r\n\r\n")
+    check(noBodyReq.hasBody() == false, "GET request should not have body")
+    check(noBodyReq.body == "", "Body should be empty")
+
+    print("  Body parsing OK\n")

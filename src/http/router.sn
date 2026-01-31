@@ -173,7 +173,7 @@ fn matchPath(pattern: str, path: str): bool =>
         var prefix: str = p.substring(0, p.length - 2)
         if !r.startsWith(prefix) =>
             return false
-        var suffix: str = r.substring(prefix.length)
+        var suffix: str = r.substring(prefix.length, r.length)
         # Should be exactly one segment (no more slashes)
         if suffix == "/" || suffix == "" =>
             return true

@@ -1,7 +1,8 @@
 # ==============================================================================
-# tests/test_server.sn - HTTP Server Integration Test
+# examples/server_integration.sn - HTTP Server Example
 # ==============================================================================
-# Tests the full HTTP server with TCP networking.
+# Example demonstrating the HTTP server with TCP networking.
+# Run from project root: sn examples/server_integration.sn -o bin/server
 # ==============================================================================
 
 import "../src/http/server"

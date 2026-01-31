@@ -14,15 +14,15 @@
 //     --no-color        - Disable colored output
 //     --parallel, -j N  - Run tests with N parallel workers (default: CPU count)
 
-import "../src/os/os"
-import "../src/os/process"
-import "../src/os/env"
-import "../src/io/path"
-import "../src/io/directory"
-import "../src/io/textfile"
-import "../src/io/stdio"
-import "../src/core/uuid"
-import "../src/time/time"
+import "../.sn/sindarin-pkg-sdk/src/os/os"
+import "../.sn/sindarin-pkg-sdk/src/os/process"
+import "../.sn/sindarin-pkg-sdk/src/os/env"
+import "../.sn/sindarin-pkg-sdk/src/io/path"
+import "../.sn/sindarin-pkg-sdk/src/io/directory"
+import "../.sn/sindarin-pkg-sdk/src/io/textfile"
+import "../.sn/sindarin-pkg-sdk/src/io/stdio"
+import "../.sn/sindarin-pkg-sdk/src/core/uuid"
+import "../.sn/sindarin-pkg-sdk/src/time/time"
 
 // Maximum parallel workers (using fixed batch approach with explicit handle variables)
 static var MAX_PARALLEL: int = 8
@@ -462,8 +462,9 @@ fn runPositiveTest(runner: TestRunner, testFile: str, exeFile: str, testType: st
     var hasExpected: bool = Path.isFile(expectedFile)
     var expectsPanic: bool = Path.isFile(panicFile)
 
-    // For non-explore tests, require .expected file
-    if !hasExpected && testType != "explore" && testType != "sdk" =>
+    // For non-explore/sdk/all tests, require .expected file
+    // Package tests (type "all") don't require .expected - just need to compile and run successfully
+    if !hasExpected && testType != "explore" && testType != "sdk" && testType != "all" =>
         return TestResult {
             testName: testName,
             status: "skip",

@@ -2,6 +2,23 @@
 
 This document catalogs issues encountered while implementing an HTTP server package in Sindarin. Each issue includes a minimal reproduction case for compiler testing.
 
+## Status Summary
+
+| # | Issue | Severity | Status |
+|---|-------|----------|--------|
+| 1 | Module import collisions | High | ⚠️ Open - needs complex multi-file case |
+| 2 | Function type aliases | Medium | ✅ **FIXED** |
+| 3 | `any` blocks method names | Low | ✅ **FIXED** |
+| 4 | `char` type has no methods | Medium | ✅ **FIXED** - 8 methods added |
+| 5 | `str.split()` lacks limit | Low | ✅ **FIXED** - `split(delim, limit)` |
+| 6 | Multi-line struct literals | Medium | ⚠️ Open - simple repro passes |
+| 7 | Struct forward references | Low | ⚠️ Open - ordering required |
+| 8 | Multi-line method chaining | Medium | ✅ **FIXED** - indented + struct chaining |
+| 9 | Wrong file/line in errors | Medium | ⚠️ Open - depends on #1 |
+| 10 | Struct field access in imports | High | ⚠️ Open - needs complex case |
+
+**Summary**: 5 fixed, 5 open
+
 ---
 
 ## 1. Module System / Import Collisions

@@ -1,0 +1,11 @@
+import "data"
+
+fn handleRequest(req: Request): void =>
+    print($"Method: {req.method}\n")
+    print($"Path: {req.path}\n")
+    if req.isGet() =>
+        print("Is GET request\n")
+
+fn main(): void =>
+    var req: Request = Request { method: "GET", path: "/" }
+    handleRequest(req)

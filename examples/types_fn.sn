@@ -1,0 +1,14 @@
+
+struct HttpRequest => 
+  s: str
+
+struct HttpResponse => 
+  s: str
+
+type Handler = fn(http: HttpRequest): HttpResponse
+
+fn doStuff(handler: Handler) => 
+  println("Doing stuff")
+
+fn main(): void => 
+  println("Testing")

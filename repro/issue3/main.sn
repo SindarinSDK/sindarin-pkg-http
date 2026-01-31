@@ -1,0 +1,8 @@
+struct Router =>
+    fn any(path: str): Router =>
+        print($"any: {path}\n")
+        return self
+
+fn main(): void =>
+    var r: Router = Router {}
+    r.any("/test")

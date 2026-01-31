@@ -1,0 +1,155 @@
+# ==============================================================================
+# http/response.sn - HTTP Response Builder
+# ==============================================================================
+# Builds HTTP/1.1 responses with headers and body.
+# ==============================================================================
+
+import "status"
+
+# ==============================================================================
+# ResponseHeader Structure
+# ==============================================================================
+
+struct ResponseHeader =>
+    name: str
+    value: str
+
+# ==============================================================================
+# HttpResponse Structure
+# ==============================================================================
+
+struct HttpResponse =>
+    statusCode: int
+    statusText: str
+    version: str
+    headers: ResponseHeader[]
+    body: str
+
+    # ==========================================================================
+    # Static Factory Methods
+    # ==========================================================================
+
+    static fn new(code: int): HttpResponse =>
+        var res: HttpResponse = HttpResponse { statusCode: code, statusText: statusText(code), version: "HTTP/1.1", headers: {}, body: "" }
+        return res
+
+    # ==========================================================================
+    # Common Status Factory Methods
+    # ==========================================================================
+
+    static fn ok(): HttpResponse =>
+        return HttpResponse.new(200)
+
+    static fn created(): HttpResponse =>
+        return HttpResponse.new(201)
+
+    static fn noContent(): HttpResponse =>
+        return HttpResponse.new(204)
+
+    static fn badRequest(): HttpResponse =>
+        return HttpResponse.new(400)
+
+    static fn unauthorized(): HttpResponse =>
+        return HttpResponse.new(401)
+
+    static fn forbidden(): HttpResponse =>
+        return HttpResponse.new(403)
+
+    static fn notFound(): HttpResponse =>
+        return HttpResponse.new(404)
+
+    static fn methodNotAllowed(): HttpResponse =>
+        return HttpResponse.new(405)
+
+    static fn internalServerError(): HttpResponse =>
+        return HttpResponse.new(500)
+
+    # ==========================================================================
+    # Builder Methods
+    # ==========================================================================
+
+    fn setHeader(name: str, value: str): HttpResponse =>
+        var lowerName: str = name.toLower()
+        var newHeaders: ResponseHeader[] = {}
+        for h in self.headers =>
+            if h.name.toLower() != lowerName =>
+                newHeaders.push(h)
+        newHeaders.push(ResponseHeader { name: name, value: value })
+        self.headers = newHeaders
+        return self
+
+    fn addHeader(name: str, value: str): HttpResponse =>
+        self.headers.push(ResponseHeader { name: name, value: value })
+        return self
+
+    fn setBody(content: str): HttpResponse =>
+        self.body = content
+        return self
+
+    # ==========================================================================
+    # Content-Type Helpers
+    # ==========================================================================
+
+    fn html(content: str): HttpResponse =>
+        self.setHeader("Content-Type", "text/html; charset=utf-8")
+        self.body = content
+        return self
+
+    fn text(content: str): HttpResponse =>
+        self.setHeader("Content-Type", "text/plain; charset=utf-8")
+        self.body = content
+        return self
+
+    fn json(content: str): HttpResponse =>
+        self.setHeader("Content-Type", "application/json; charset=utf-8")
+        self.body = content
+        return self
+
+    # ==========================================================================
+    # Redirect Helpers
+    # ==========================================================================
+
+    static fn redirect(location: str): HttpResponse =>
+        var res: HttpResponse = HttpResponse.new(302)
+        res.setHeader("Location", location)
+        return res
+
+    # ==========================================================================
+    # Header Access Methods
+    # ==========================================================================
+
+    fn getHeader(name: str): str =>
+        var lowerName: str = name.toLower()
+        for h in self.headers =>
+            if h.name.toLower() == lowerName =>
+                return h.value
+        return ""
+
+    fn hasHeader(name: str): bool =>
+        var lowerName: str = name.toLower()
+        for h in self.headers =>
+            if h.name.toLower() == lowerName =>
+                return true
+        return false
+
+    # ==========================================================================
+    # Serialization Methods
+    # ==========================================================================
+
+    fn toString(): str =>
+        var result: str = ""
+        result = $"{self.version} {self.statusCode} {self.statusText}\r\n"
+
+        if self.body.length > 0 && !self.hasHeader("Content-Length") =>
+            result = result + $"Content-Length: {self.body.length}\r\n"
+
+        for h in self.headers =>
+            result = result + $"{h.name}: {h.value}\r\n"
+
+        result = result + "\r\n"
+        result = result + self.body
+
+        return result
+
+    fn toBytes(): byte[] =>
+        return self.toString().toBytes()

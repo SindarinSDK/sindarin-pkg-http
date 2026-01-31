@@ -1,0 +1,140 @@
+# ==============================================================================
+# http/status.sn - HTTP Status Codes
+# ==============================================================================
+# Standard HTTP/1.1 status codes and reason phrases.
+#
+# Usage:
+#   import "http/status"
+#   var code: int = STATUS_OK
+#   var text: str = statusText(200)  # "OK"
+# ==============================================================================
+
+# ==============================================================================
+# 1xx Informational
+# ==============================================================================
+var STATUS_CONTINUE: int = 100
+var STATUS_SWITCHING_PROTOCOLS: int = 101
+
+# ==============================================================================
+# 2xx Success
+# ==============================================================================
+var STATUS_OK: int = 200
+var STATUS_CREATED: int = 201
+var STATUS_ACCEPTED: int = 202
+var STATUS_NO_CONTENT: int = 204
+var STATUS_RESET_CONTENT: int = 205
+var STATUS_PARTIAL_CONTENT: int = 206
+
+# ==============================================================================
+# 3xx Redirection
+# ==============================================================================
+var STATUS_MOVED_PERMANENTLY: int = 301
+var STATUS_FOUND: int = 302
+var STATUS_SEE_OTHER: int = 303
+var STATUS_NOT_MODIFIED: int = 304
+var STATUS_TEMPORARY_REDIRECT: int = 307
+var STATUS_PERMANENT_REDIRECT: int = 308
+
+# ==============================================================================
+# 4xx Client Errors
+# ==============================================================================
+var STATUS_BAD_REQUEST: int = 400
+var STATUS_UNAUTHORIZED: int = 401
+var STATUS_FORBIDDEN: int = 403
+var STATUS_NOT_FOUND: int = 404
+var STATUS_METHOD_NOT_ALLOWED: int = 405
+var STATUS_NOT_ACCEPTABLE: int = 406
+var STATUS_REQUEST_TIMEOUT: int = 408
+var STATUS_CONFLICT: int = 409
+var STATUS_GONE: int = 410
+var STATUS_LENGTH_REQUIRED: int = 411
+var STATUS_PAYLOAD_TOO_LARGE: int = 413
+var STATUS_URI_TOO_LONG: int = 414
+var STATUS_UNSUPPORTED_MEDIA_TYPE: int = 415
+var STATUS_UNPROCESSABLE_ENTITY: int = 422
+var STATUS_TOO_MANY_REQUESTS: int = 429
+
+# ==============================================================================
+# 5xx Server Errors
+# ==============================================================================
+var STATUS_INTERNAL_SERVER_ERROR: int = 500
+var STATUS_NOT_IMPLEMENTED: int = 501
+var STATUS_BAD_GATEWAY: int = 502
+var STATUS_SERVICE_UNAVAILABLE: int = 503
+var STATUS_GATEWAY_TIMEOUT: int = 504
+var STATUS_HTTP_VERSION_NOT_SUPPORTED: int = 505
+
+# ==============================================================================
+# Status Text Lookup
+# ==============================================================================
+
+fn statusText(code: int): str =>
+    # 1xx
+    if code == 100 => return "Continue"
+    if code == 101 => return "Switching Protocols"
+
+    # 2xx
+    if code == 200 => return "OK"
+    if code == 201 => return "Created"
+    if code == 202 => return "Accepted"
+    if code == 204 => return "No Content"
+    if code == 205 => return "Reset Content"
+    if code == 206 => return "Partial Content"
+
+    # 3xx
+    if code == 301 => return "Moved Permanently"
+    if code == 302 => return "Found"
+    if code == 303 => return "See Other"
+    if code == 304 => return "Not Modified"
+    if code == 307 => return "Temporary Redirect"
+    if code == 308 => return "Permanent Redirect"
+
+    # 4xx
+    if code == 400 => return "Bad Request"
+    if code == 401 => return "Unauthorized"
+    if code == 403 => return "Forbidden"
+    if code == 404 => return "Not Found"
+    if code == 405 => return "Method Not Allowed"
+    if code == 406 => return "Not Acceptable"
+    if code == 408 => return "Request Timeout"
+    if code == 409 => return "Conflict"
+    if code == 410 => return "Gone"
+    if code == 411 => return "Length Required"
+    if code == 413 => return "Payload Too Large"
+    if code == 414 => return "URI Too Long"
+    if code == 415 => return "Unsupported Media Type"
+    if code == 422 => return "Unprocessable Entity"
+    if code == 429 => return "Too Many Requests"
+
+    # 5xx
+    if code == 500 => return "Internal Server Error"
+    if code == 501 => return "Not Implemented"
+    if code == 502 => return "Bad Gateway"
+    if code == 503 => return "Service Unavailable"
+    if code == 504 => return "Gateway Timeout"
+    if code == 505 => return "HTTP Version Not Supported"
+
+    # Unknown
+    return "Unknown"
+
+# ==============================================================================
+# Status Category Helpers
+# ==============================================================================
+
+fn isInformational(code: int): bool =>
+    return code >= 100 && code < 200
+
+fn isSuccess(code: int): bool =>
+    return code >= 200 && code < 300
+
+fn isRedirect(code: int): bool =>
+    return code >= 300 && code < 400
+
+fn isClientError(code: int): bool =>
+    return code >= 400 && code < 500
+
+fn isServerError(code: int): bool =>
+    return code >= 500 && code < 600
+
+fn isError(code: int): bool =>
+    return code >= 400

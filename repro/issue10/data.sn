@@ -1,0 +1,6 @@
+struct Request =>
+    method: str
+    path: str
+
+    fn isGet(): bool =>
+        return self.method == "GET"

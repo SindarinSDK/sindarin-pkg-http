@@ -1,0 +1,11 @@
+fn getPoint(): Point =>
+    var p: Point = Point { x: 1, y: 2 }
+    return p
+
+struct Point =>
+    x: int
+    y: int
+
+fn main(): void =>
+    var p: Point = getPoint()
+    print($"{p.x}\n")

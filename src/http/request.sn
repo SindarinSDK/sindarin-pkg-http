@@ -1,0 +1,183 @@
+# ==============================================================================
+# http/request.sn - HTTP Request Parser
+# ==============================================================================
+# Parses HTTP/1.1 requests from raw data.
+#
+# Usage:
+#   import "http/request"
+#
+#   var req: HttpRequest = HttpRequest.parse(rawData)
+#   print($"Method: {req.method}\n")
+#   print($"Path: {req.path}\n")
+#   var contentType: str = req.getHeader("Content-Type")
+# ==============================================================================
+
+# ==============================================================================
+# Header Structure
+# ==============================================================================
+
+struct Header =>
+    name: str
+    value: str
+
+# ==============================================================================
+# HttpRequest Structure
+# ==============================================================================
+
+struct HttpRequest =>
+    method: str
+    path: str
+    query: str
+    version: str
+    headers: Header[]
+    body: str
+    raw: str
+
+    # ==========================================================================
+    # Static Factory Methods
+    # ==========================================================================
+
+    static fn parse(data: str): HttpRequest =>
+        var req: HttpRequest = HttpRequest { method: "", path: "", query: "", version: "", headers: {}, body: "", raw: data }
+
+        var normalized: str = data.replace("\r\n", "\n")
+        var lines: str[] = normalized.split("\n")
+
+        if lines.length == 0 =>
+            return req
+
+        var requestLine: str = lines[0]
+        var parts: str[] = requestLine.split(" ")
+
+        if parts.length >= 1 =>
+            req.method = parts[0]
+
+        if parts.length >= 2 =>
+            var fullPath: str = parts[1]
+            var qIndex: int = fullPath.indexOf("?")
+            if qIndex >= 0 =>
+                req.path = fullPath.substring(0, qIndex)
+                req.query = fullPath.substring(qIndex + 1, fullPath.length)
+            else =>
+                req.path = fullPath
+
+        if parts.length >= 3 =>
+            req.version = parts[2]
+
+        var headersDone: bool = false
+        var bodyStartIndex: int = 1
+
+        for var i: int = 1; i < lines.length; i++ =>
+            var line: str = lines[i]
+
+            if line.trim() == "" =>
+                headersDone = true
+                bodyStartIndex = i + 1
+                break
+
+            var colonIndex: int = line.indexOf(":")
+            if colonIndex > 0 =>
+                var name: str = line.substring(0, colonIndex).trim()
+                var value: str = line.substring(colonIndex + 1, line.length).trim()
+                req.headers.push(Header { name: name, value: value })
+
+        if headersDone && bodyStartIndex < lines.length =>
+            var bodyLines: str[] = {}
+            for var i: int = bodyStartIndex; i < lines.length; i++ =>
+                bodyLines.push(lines[i])
+            req.body = bodyLines.join("\n")
+
+        return req
+
+    # ==========================================================================
+    # Header Access Methods
+    # ==========================================================================
+
+    fn getHeader(name: str): str =>
+        var lowerName: str = name.toLower()
+        for h in self.headers =>
+            if h.name.toLower() == lowerName =>
+                return h.value
+        return ""
+
+    fn hasHeader(name: str): bool =>
+        var lowerName: str = name.toLower()
+        for h in self.headers =>
+            if h.name.toLower() == lowerName =>
+                return true
+        return false
+
+    # ==========================================================================
+    # Query String Methods
+    # ==========================================================================
+
+    fn queryParam(name: str): str =>
+        if self.query == "" =>
+            return ""
+
+        var pairs: str[] = self.query.split("&")
+        for pair in pairs =>
+            var eqIndex: int = pair.indexOf("=")
+            if eqIndex > 0 =>
+                var key: str = pair.substring(0, eqIndex)
+                if key == name =>
+                    return pair.substring(eqIndex + 1, pair.length)
+            else if pair == name =>
+                return ""
+        return ""
+
+    fn hasQueryParam(name: str): bool =>
+        if self.query == "" =>
+            return false
+
+        var pairs: str[] = self.query.split("&")
+        for pair in pairs =>
+            var eqIndex: int = pair.indexOf("=")
+            if eqIndex > 0 =>
+                var key: str = pair.substring(0, eqIndex)
+                if key == name =>
+                    return true
+            else if pair == name =>
+                return true
+        return false
+
+    # ==========================================================================
+    # Content Methods
+    # ==========================================================================
+
+    fn contentType(): str =>
+        return self.getHeader("Content-Type")
+
+    fn contentLength(): int =>
+        var lenStr: str = self.getHeader("Content-Length")
+        if lenStr == "" =>
+            return 0
+        return lenStr.toInt()
+
+    fn hasBody(): bool =>
+        return self.body.length > 0
+
+    # ==========================================================================
+    # Method Helpers
+    # ==========================================================================
+
+    fn isGet(): bool =>
+        return self.method == "GET"
+
+    fn isPost(): bool =>
+        return self.method == "POST"
+
+    fn isPut(): bool =>
+        return self.method == "PUT"
+
+    fn isDelete(): bool =>
+        return self.method == "DELETE"
+
+    fn isPatch(): bool =>
+        return self.method == "PATCH"
+
+    fn isHead(): bool =>
+        return self.method == "HEAD"
+
+    fn isOptions(): bool =>
+        return self.method == "OPTIONS"

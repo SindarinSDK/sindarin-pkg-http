@@ -1,0 +1,203 @@
+# ==============================================================================
+# http/server.sn - HTTP Server
+# ==============================================================================
+# A multithreaded HTTP/1.1 server built on TCP sockets.
+#
+# Usage:
+#   import "http/server"
+#   import "http/router"
+#
+#   fn homeHandler(req: HttpRequest): HttpResponse =>
+#       return HttpResponse.ok().html("<h1>Hello World</h1>")
+#
+#   var router: Router = Router.new()
+#   router.get("/", homeHandler)
+#
+#   var server: HttpServer = HttpServer.new(router)
+#   server.listen(8080)  # Blocks and serves requests
+# ==============================================================================
+
+import "../../.sn/sindarin-pkg-sdk/src/net/tcp"
+import "request"
+import "response"
+import "router"
+
+# ==============================================================================
+# Server Statistics
+# ==============================================================================
+
+struct ServerStats =>
+    totalRequests: int
+    activeConnections: int
+    totalErrors: int
+
+# Thread-safe counters for server statistics
+sync var totalRequests: int = 0
+sync var activeConnections: int = 0
+sync var totalErrors: int = 0
+
+fn getStats(): ServerStats =>
+    var stats: ServerStats = ServerStats { totalRequests: totalRequests, activeConnections: activeConnections, totalErrors: totalErrors }
+    return stats
+
+# ==============================================================================
+# HttpServer Structure
+# ==============================================================================
+
+struct HttpServer =>
+    router: Router
+    host: str
+    port: int
+    maxRequestSize: int
+    running: bool
+
+    # ==========================================================================
+    # Static Factory Methods
+    # ==========================================================================
+
+    static fn new(router: Router): HttpServer =>
+        var server: HttpServer = HttpServer { router: router, host: "0.0.0.0", port: 8080, maxRequestSize: 1048576, running: false }
+        return server
+
+    # Create with specific port
+    static fn onPort(router: Router, port: int): HttpServer =>
+        var server: HttpServer = HttpServer.new(router)
+        server.port = port
+        return server
+
+    # ==========================================================================
+    # Configuration Methods
+    # ==========================================================================
+
+    fn setHost(host: str): HttpServer =>
+        self.host = host
+        return self
+
+    fn setPort(port: int): HttpServer =>
+        self.port = port
+        return self
+
+    fn setMaxRequestSize(size: int): HttpServer =>
+        self.maxRequestSize = size
+        return self
+
+    # ==========================================================================
+    # Server Control
+    # ==========================================================================
+
+    # Start the server and listen for connections (blocking)
+    fn listen(port: int): void =>
+        self.port = port
+        self.running = true
+
+        var address: str = $"{self.host}:{self.port}"
+        var listener: TcpListener = TcpListener.bind(address)
+
+        print($"HTTP server listening on http://{self.host}:{listener.port()}\n")
+
+        while self.running =>
+            var client: TcpStream = listener.accept()
+            activeConnections++
+            &self.handleClient(client)
+
+        listener.close()
+
+    # Start on configured port
+    fn start(): void =>
+        self.listen(self.port)
+
+    # Stop the server (would need to be called from another thread)
+    fn stop(): void =>
+        self.running = false
+
+    # ==========================================================================
+    # Client Handling
+    # ==========================================================================
+
+    # Handle a single client connection
+    fn handleClient(client: TcpStream): void =>
+        var response: HttpResponse = HttpResponse.internalServerError()
+        response = response.text("Internal Server Error")
+
+        var requestData: str = self.readRequest(client)
+
+        if requestData.length > 0 =>
+            var request: HttpRequest = HttpRequest.parse(requestData)
+            totalRequests++
+            response = self.router.handle(request)
+
+        var responseBytes: byte[] = response.toBytes()
+        client.write(responseBytes)
+        client.close()
+        activeConnections--
+
+    # Read HTTP request from client
+    fn readRequest(client: TcpStream): str =>
+        var buffer: str = ""
+        var headersComplete: bool = false
+        var contentLength: int = 0
+        var bodyBytesRead: int = 0
+
+        while !headersComplete =>
+            var chunk: byte[] = client.read(4096)
+            if chunk.length == 0 =>
+                break
+
+            buffer = buffer + chunk.toString()
+
+            if buffer.contains("\r\n\r\n") =>
+                headersComplete = true
+                contentLength = parseContentLength(buffer)
+                var headerEnd: int = buffer.indexOf("\r\n\r\n") + 4
+                bodyBytesRead = buffer.length - headerEnd
+
+            if buffer.length > self.maxRequestSize =>
+                totalErrors++
+                return ""
+
+        if contentLength > 0 =>
+            while bodyBytesRead < contentLength =>
+                var remaining: int = contentLength - bodyBytesRead
+                var toRead: int = 4096
+                if remaining < toRead =>
+                    toRead = remaining
+
+                var chunk: byte[] = client.read(toRead)
+                if chunk.length == 0 =>
+                    break
+
+                buffer = buffer + chunk.toString()
+                bodyBytesRead = bodyBytesRead + chunk.length
+
+                if buffer.length > self.maxRequestSize =>
+                    totalErrors++
+                    return ""
+
+        return buffer
+
+# ==============================================================================
+# Helper Functions
+# ==============================================================================
+
+fn parseContentLength(data: str): int =>
+    var lines: str[] = data.split("\r\n")
+    for line in lines =>
+        var lowerLine: str = line.toLower()
+        if lowerLine.startsWith("content-length:") =>
+            var valueStr: str = line.substring(15).trim()
+            return valueStr.toInt()
+    return 0
+
+# ==============================================================================
+# Quick Start Helper
+# ==============================================================================
+
+fn serve(port: int, handler: fn(HttpRequest): HttpResponse): void =>
+    var router: Router = Router.new()
+    router.all("/**", handler)
+    var server: HttpServer = HttpServer.new(router)
+    server.listen(port)
+
+fn serveRouter(port: int, router: Router): void =>
+    var server: HttpServer = HttpServer.new(router)
+    server.listen(port)

@@ -1,0 +1,7 @@
+struct MyType =>
+    value: int
+
+var CONSTANT: int = 42
+
+fn helperFunc(): int =>
+    return 1

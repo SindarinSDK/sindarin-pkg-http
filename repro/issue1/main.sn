@@ -1,0 +1,5 @@
+import "lib"
+
+fn main(): void =>
+    var x: MyType = MyType { value: 10 }
+    print($"{x.value}\n")

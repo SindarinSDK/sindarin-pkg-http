@@ -3,5 +3,5 @@ version: 1.0.0
 license: MIT
 dependencies:
 - name: sindarin-pkg-sdk
-  git: https://github.com/SindarinSDK/sindarin-pkg-sdk.git
+  git: git@github.com:SindarinSDK/sindarin-pkg-sdk.git
   branch: main

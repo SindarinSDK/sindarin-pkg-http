@@ -1,0 +1,34 @@
+# ==============================================================================
+# tests/test_server.sn - HTTP Server Integration Test
+# ==============================================================================
+# Tests the full HTTP server with TCP networking.
+# ==============================================================================
+
+import "../src/http/server"
+
+fn homeHandler(req: HttpRequest): HttpResponse =>
+    return HttpResponse.ok().text("Hello from Sindarin!")
+
+fn echoHandler(req: HttpRequest): HttpResponse =>
+    return HttpResponse.ok().text($"Path: {req.path}, Method: {req.method}")
+
+fn main(): void =>
+    print("HTTP Server Integration Test\n")
+    print("=============================\n\n")
+
+    # Create router with test routes
+    print("Setting up router...\n")
+    var router: Router = Router.new()
+    router.get("/", homeHandler)
+    router.get("/echo", echoHandler)
+    print("Router configured\n")
+
+    # Create server
+    print("Creating server...\n")
+    var server: HttpServer = HttpServer.new(router)
+    print("Server created\n")
+
+    # Start server (will block)
+    print("Starting server on port 8765...\n")
+    print("Test manually with: curl http://localhost:8765/\n")
+    server.listen(8765)

@@ -135,6 +135,9 @@ fn matchPath(pattern: str, path: str): bool =>
         var suffix: str = r.substring(prefix.length, r.length)
         if suffix == "/" || suffix == "" =>
             return true
+        # Skip leading slash and check for additional slashes
+        if suffix.startsWith("/") =>
+            suffix = suffix.substring(1, suffix.length)
         return !suffix.contains("/")
 
     var patternParts: str[] = p.split("/")

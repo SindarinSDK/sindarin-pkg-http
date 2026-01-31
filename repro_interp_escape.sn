@@ -1,0 +1,9 @@
+# Reproduction: Escaped quotes in interpolated strings
+
+struct Obj =>
+    fn getValue(key: str): str =>
+        return "test"
+
+fn main(): void =>
+    var obj: Obj = Obj {}
+    print($"Value: {obj.getValue(\"mykey\")}\n")

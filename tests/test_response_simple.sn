@@ -1,0 +1,48 @@
+# Simplified response test
+
+import "../src/http/response"
+
+fn main(): void =>
+    print("Testing HTTP Response Builder\n")
+    print("==============================\n\n")
+
+    # Test basic response creation
+    print("Testing basic response...\n")
+    var res: HttpResponse = HttpResponse.new(200)
+    print($"Status code: {res.statusCode}\n")
+    print($"Status text: {res.statusText}\n")
+    print($"Version: {res.version}\n")
+
+    # Test factory methods
+    print("\nTesting factory methods...\n")
+    var ok: HttpResponse = HttpResponse.ok()
+    print($"ok() status: {ok.statusCode}\n")
+
+    var notFound: HttpResponse = HttpResponse.notFound()
+    print($"notFound() status: {notFound.statusCode}\n")
+
+    # Test headers
+    print("\nTesting headers...\n")
+    var res2: HttpResponse = HttpResponse.ok()
+    res2.setHeader("X-Custom", "value1")
+    var customHeader: str = res2.getHeader("X-Custom")
+    print($"X-Custom header: {customHeader}\n")
+    var hasCustom: bool = res2.hasHeader("X-Custom")
+    print($"Has X-Custom: {hasCustom}\n")
+
+    # Test content helpers
+    print("\nTesting content helpers...\n")
+    var htmlRes: HttpResponse = HttpResponse.ok()
+    htmlRes.html("<h1>Hello</h1>")
+    var contentType: str = htmlRes.getHeader("Content-Type")
+    print($"Content-Type: {contentType}\n")
+    print($"Body: {htmlRes.body}\n")
+
+    # Test serialization
+    print("\nTesting serialization...\n")
+    var res3: HttpResponse = HttpResponse.ok()
+    res3.text("Hello")
+    var output: str = res3.toString()
+    print($"Response output:\n{output}\n")
+
+    print("\nAll response tests completed!\n")

@@ -1,0 +1,19 @@
+# Simple test to check HttpResponse building
+import "../src/http/response"
+
+fn main(): void =>
+    print("Creating response...\n")
+    var res: HttpResponse = HttpResponse.ok()
+    print($"Status code: {res.statusCode}\n")
+    print($"Status text: {res.statusText}\n")
+
+    print("\nAdding text body...\n")
+    res = res.text("Hello World!")
+    print($"Body: {res.body}\n")
+    print($"Body length: {res.body.length}\n")
+
+    print("\nConverting to string...\n")
+    var responseStr: str = res.toString()
+    print("Response string:\n")
+    print(responseStr)
+    print("\n---END---\n")

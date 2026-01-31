@@ -1,0 +1,28 @@
+# Test router without threads
+import "../src/http/router"
+import "../src/http/request"
+import "../src/http/response"
+
+fn homeHandler(req: HttpRequest): HttpResponse =>
+    print($"Handler called! Path: {req.path}\n")
+    return HttpResponse.ok().text("Hello from handler!")
+
+fn main(): void =>
+    print("Setting up router...\n")
+    var router: Router = Router.new()
+    router.get("/", homeHandler)
+    print("Router configured\n")
+
+    print("\nCreating fake request...\n")
+    var reqData: str = "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
+    var req: HttpRequest = HttpRequest.parse(reqData)
+    print($"Parsed request - Method: {req.method}, Path: {req.path}\n")
+
+    print("\nCalling router.handle()...\n")
+    var res: HttpResponse = router.handle(req)
+    print($"Response - Code: {res.statusCode}, Text: {res.statusText}\n")
+    print($"Body: {res.body}\n")
+
+    print("\nFull response:\n")
+    print(res.toString())
+    print("---END---\n")

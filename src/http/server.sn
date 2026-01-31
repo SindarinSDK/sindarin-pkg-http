@@ -184,7 +184,7 @@ fn parseContentLength(data: str): int =>
     for line in lines =>
         var lowerLine: str = line.toLower()
         if lowerLine.startsWith("content-length:") =>
-            var valueStr: str = line.substring(15).trim()
+            var valueStr: str = line.substring(15, line.length).trim()
             return valueStr.toInt()
     return 0
 

@@ -2,32 +2,30 @@
 # http/router.sn - HTTP Router
 # ==============================================================================
 # Routes HTTP requests to handlers based on method and path.
-#
-# Usage:
-#   import "http/router"
-#   import "http/request"
-#   import "http/response"
-#
-#   fn homeHandler(req: HttpRequest): HttpResponse =>
-#       return HttpResponse.ok().html("<h1>Home</h1>")
-#
-#   var router: Router = Router.new()
-#   router.get("/", homeHandler)
-#   router.post("/user", createUserHandler)
-#
-#   var response: HttpResponse = router.handle(request)
 # ==============================================================================
 
 import "request"
 import "response"
 
 # ==============================================================================
+# Default Error Handlers (must be defined before Router references them)
+# ==============================================================================
+
+fn defaultNotFoundHandler(req: HttpRequest): HttpResponse =>
+    var res: HttpResponse = HttpResponse.notFound()
+    return res.text($"404 Not Found: {req.path}")
+
+fn defaultMethodNotAllowedHandler(req: HttpRequest): HttpResponse =>
+    var res: HttpResponse = HttpResponse.methodNotAllowed()
+    return res.text($"405 Method Not Allowed: {req.method} {req.path}")
+
+# ==============================================================================
 # Route Structure
 # ==============================================================================
 
 struct Route =>
-    method: str         # HTTP method (GET, POST, etc.) or "*" for all
-    pattern: str        # Path pattern (exact match or with wildcards)
+    method: str
+    pattern: str
     handler: fn(HttpRequest): HttpResponse
 
 # ==============================================================================
@@ -39,10 +37,6 @@ struct Router =>
     notFoundHandler: fn(HttpRequest): HttpResponse
     methodNotAllowedHandler: fn(HttpRequest): HttpResponse
 
-    # ==========================================================================
-    # Static Factory Methods
-    # ==========================================================================
-
     static fn new(): Router =>
         return Router {
             routes: {},
@@ -50,11 +44,6 @@ struct Router =>
             methodNotAllowedHandler: defaultMethodNotAllowedHandler
         }
 
-    # ==========================================================================
-    # Route Registration Methods
-    # ==========================================================================
-
-    # Register a route for any HTTP method
     fn route(method: str, path: str, handler: fn(HttpRequest): HttpResponse): Router =>
         self.routes.push(Route {
             method: method.toUpper(),
@@ -63,41 +52,29 @@ struct Router =>
         })
         return self
 
-    # Register a GET route
     fn get(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
         return self.route("GET", path, handler)
 
-    # Register a POST route
     fn post(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
         return self.route("POST", path, handler)
 
-    # Register a PUT route
     fn put(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
         return self.route("PUT", path, handler)
 
-    # Register a DELETE route
     fn delete(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
         return self.route("DELETE", path, handler)
 
-    # Register a PATCH route
     fn patch(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
         return self.route("PATCH", path, handler)
 
-    # Register a HEAD route
     fn head(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
         return self.route("HEAD", path, handler)
 
-    # Register a OPTIONS route
     fn options(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
         return self.route("OPTIONS", path, handler)
 
-    # Register a route that matches all methods
     fn all(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
         return self.route("*", path, handler)
-
-    # ==========================================================================
-    # Error Handler Registration
-    # ==========================================================================
 
     fn setNotFoundHandler(handler: fn(HttpRequest): HttpResponse): Router =>
         self.notFoundHandler = handler
@@ -107,29 +84,20 @@ struct Router =>
         self.methodNotAllowedHandler = handler
         return self
 
-    # ==========================================================================
-    # Request Handling
-    # ==========================================================================
-
-    # Handle a request and return a response
     fn handle(req: HttpRequest): HttpResponse =>
         var pathMatches: bool = false
 
-        # First pass: look for exact method + path match
         for route in self.routes =>
             if matchPath(route.pattern, req.path) =>
                 pathMatches = true
                 if route.method == "*" || route.method == req.method =>
                     return route.handler(req)
 
-        # If path matched but method didn't, return 405
         if pathMatches =>
             return self.methodNotAllowedHandler(req)
 
-        # No path match, return 404
         return self.notFoundHandler(req)
 
-    # Get allowed methods for a path (for OPTIONS and 405 responses)
     fn allowedMethods(path: str): str[] =>
         var methods: str[] = {}
         for route in self.routes =>
@@ -149,37 +117,26 @@ struct Router =>
 # Path Matching
 # ==============================================================================
 
-# Match a path pattern against a request path
-# Supports:
-#   - Exact match: "/users" matches "/users"
-#   - Wildcard: "/users/*" matches "/users/123"
-#   - Double wildcard: "/api/**" matches "/api/v1/users/123"
 fn matchPath(pattern: str, path: str): bool =>
-    # Normalize paths
     var p: str = normalizePath(pattern)
     var r: str = normalizePath(path)
 
-    # Exact match
     if p == r =>
         return true
 
-    # Double wildcard at end: matches entire suffix
     if p.endsWith("/**") =>
         var prefix: str = p.substring(0, p.length - 3)
         return r.startsWith(prefix)
 
-    # Single wildcard at end: matches one segment
     if p.endsWith("/*") =>
         var prefix: str = p.substring(0, p.length - 2)
         if !r.startsWith(prefix) =>
             return false
         var suffix: str = r.substring(prefix.length, r.length)
-        # Should be exactly one segment (no more slashes)
         if suffix == "/" || suffix == "" =>
             return true
         return !suffix.contains("/")
 
-    # Segment-by-segment matching with wildcards
     var patternParts: str[] = p.split("/")
     var pathParts: str[] = r.split("/")
 
@@ -190,38 +147,21 @@ fn matchPath(pattern: str, path: str): bool =>
         var pp: str = patternParts[i]
         var rp: str = pathParts[i]
 
-        # Wildcard segment matches one segment
         if pp == "*" =>
             continue
 
-        # Exact segment match required
         if pp != rp =>
             return false
 
     return true
 
-# Normalize a path (remove trailing slash, ensure leading slash)
 fn normalizePath(path: str): str =>
     var p: str = path
 
-    # Ensure leading slash
     if !p.startsWith("/") =>
         p = "/" + p
 
-    # Remove trailing slash (except for root)
     if p.length > 1 && p.endsWith("/") =>
         p = p.substring(0, p.length - 1)
 
     return p
-
-# ==============================================================================
-# Default Error Handlers
-# ==============================================================================
-
-fn defaultNotFoundHandler(req: HttpRequest): HttpResponse =>
-    var res: HttpResponse = HttpResponse.notFound()
-    return res.text($"404 Not Found: {req.path}")
-
-fn defaultMethodNotAllowedHandler(req: HttpRequest): HttpResponse =>
-    var res: HttpResponse = HttpResponse.methodNotAllowed()
-    return res.text($"405 Method Not Allowed: {req.method} {req.path}")

@@ -115,7 +115,6 @@ static RtAny __thunk_42(void);
 static RtAny __thunk_43(void);
 static RtAny __thunk_44(void);
 static RtAny __thunk_45(void);
-static RtAny __thunk_46(void);
 
 long long __sn__STATUS_CONTINUE = 100LL;
 long long __sn__STATUS_SWITCHING_PROTOCOLS = 101LL;
@@ -563,138 +562,120 @@ __sn__testBasicResponse_return:
 void __sn__testStatusFactories(RtManagedArena *__caller_arena__) {
     RtManagedArena *__local_arena__ = rt_managed_arena_create_child(__caller_arena__);
     rt_print_string("Testing status factory methods...\n");
-    RtThreadHandle *__ok_pending__ = NULL;
-    __sn__HttpResponse __sn__ok = __sn__HttpResponse_ok(__local_arena__);
     ({
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
-        __args[0] = rt_box_bool(rt_eq_long(__sn__ok.__sn__statusCode, 200LL));
+        __args[0] = rt_box_bool(rt_eq_long(__sn__HttpResponse_ok(__local_arena__).__sn__statusCode, 200LL));
         __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "ok() should return 200")));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_10);
     } else {
-        __sn__check(__local_arena__, rt_eq_long(__sn__ok.__sn__statusCode, 200LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "ok() should return 200"));
+        __sn__check(__local_arena__, rt_eq_long(__sn__HttpResponse_ok(__local_arena__).__sn__statusCode, 200LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "ok() should return 200"));
     }
     (void)0;
 });
-    RtThreadHandle *__created_pending__ = NULL;
-    __sn__HttpResponse __sn__created = __sn__HttpResponse_created(__local_arena__);
     ({
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
-        __args[0] = rt_box_bool(rt_eq_long(__sn__created.__sn__statusCode, 201LL));
+        __args[0] = rt_box_bool(rt_eq_long(__sn__HttpResponse_created(__local_arena__).__sn__statusCode, 201LL));
         __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "created() should return 201")));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_11);
     } else {
-        __sn__check(__local_arena__, rt_eq_long(__sn__created.__sn__statusCode, 201LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "created() should return 201"));
+        __sn__check(__local_arena__, rt_eq_long(__sn__HttpResponse_created(__local_arena__).__sn__statusCode, 201LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "created() should return 201"));
     }
     (void)0;
 });
-    RtThreadHandle *__noContent_pending__ = NULL;
-    __sn__HttpResponse __sn__noContent = __sn__HttpResponse_noContent(__local_arena__);
     ({
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
-        __args[0] = rt_box_bool(rt_eq_long(__sn__noContent.__sn__statusCode, 204LL));
+        __args[0] = rt_box_bool(rt_eq_long(__sn__HttpResponse_noContent(__local_arena__).__sn__statusCode, 204LL));
         __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "noContent() should return 204")));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_12);
     } else {
-        __sn__check(__local_arena__, rt_eq_long(__sn__noContent.__sn__statusCode, 204LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "noContent() should return 204"));
+        __sn__check(__local_arena__, rt_eq_long(__sn__HttpResponse_noContent(__local_arena__).__sn__statusCode, 204LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "noContent() should return 204"));
     }
     (void)0;
 });
-    RtThreadHandle *__badRequest_pending__ = NULL;
-    __sn__HttpResponse __sn__badRequest = __sn__HttpResponse_badRequest(__local_arena__);
     ({
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
-        __args[0] = rt_box_bool(rt_eq_long(__sn__badRequest.__sn__statusCode, 400LL));
+        __args[0] = rt_box_bool(rt_eq_long(__sn__HttpResponse_badRequest(__local_arena__).__sn__statusCode, 400LL));
         __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "badRequest() should return 400")));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_13);
     } else {
-        __sn__check(__local_arena__, rt_eq_long(__sn__badRequest.__sn__statusCode, 400LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "badRequest() should return 400"));
+        __sn__check(__local_arena__, rt_eq_long(__sn__HttpResponse_badRequest(__local_arena__).__sn__statusCode, 400LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "badRequest() should return 400"));
     }
     (void)0;
 });
-    RtThreadHandle *__unauthorized_pending__ = NULL;
-    __sn__HttpResponse __sn__unauthorized = __sn__HttpResponse_unauthorized(__local_arena__);
     ({
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
-        __args[0] = rt_box_bool(rt_eq_long(__sn__unauthorized.__sn__statusCode, 401LL));
+        __args[0] = rt_box_bool(rt_eq_long(__sn__HttpResponse_unauthorized(__local_arena__).__sn__statusCode, 401LL));
         __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "unauthorized() should return 401")));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_14);
     } else {
-        __sn__check(__local_arena__, rt_eq_long(__sn__unauthorized.__sn__statusCode, 401LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "unauthorized() should return 401"));
+        __sn__check(__local_arena__, rt_eq_long(__sn__HttpResponse_unauthorized(__local_arena__).__sn__statusCode, 401LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "unauthorized() should return 401"));
     }
     (void)0;
 });
-    RtThreadHandle *__forbidden_pending__ = NULL;
-    __sn__HttpResponse __sn__forbidden = __sn__HttpResponse_forbidden(__local_arena__);
     ({
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
-        __args[0] = rt_box_bool(rt_eq_long(__sn__forbidden.__sn__statusCode, 403LL));
+        __args[0] = rt_box_bool(rt_eq_long(__sn__HttpResponse_forbidden(__local_arena__).__sn__statusCode, 403LL));
         __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "forbidden() should return 403")));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_15);
     } else {
-        __sn__check(__local_arena__, rt_eq_long(__sn__forbidden.__sn__statusCode, 403LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "forbidden() should return 403"));
+        __sn__check(__local_arena__, rt_eq_long(__sn__HttpResponse_forbidden(__local_arena__).__sn__statusCode, 403LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "forbidden() should return 403"));
     }
     (void)0;
 });
-    RtThreadHandle *__notFound_pending__ = NULL;
-    __sn__HttpResponse __sn__notFound = __sn__HttpResponse_notFound(__local_arena__);
     ({
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
-        __args[0] = rt_box_bool(rt_eq_long(__sn__notFound.__sn__statusCode, 404LL));
+        __args[0] = rt_box_bool(rt_eq_long(__sn__HttpResponse_notFound(__local_arena__).__sn__statusCode, 404LL));
         __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "notFound() should return 404")));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_16);
     } else {
-        __sn__check(__local_arena__, rt_eq_long(__sn__notFound.__sn__statusCode, 404LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "notFound() should return 404"));
+        __sn__check(__local_arena__, rt_eq_long(__sn__HttpResponse_notFound(__local_arena__).__sn__statusCode, 404LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "notFound() should return 404"));
     }
     (void)0;
 });
-    RtThreadHandle *__methodNotAllowed_pending__ = NULL;
-    __sn__HttpResponse __sn__methodNotAllowed = __sn__HttpResponse_methodNotAllowed(__local_arena__);
     ({
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
-        __args[0] = rt_box_bool(rt_eq_long(__sn__methodNotAllowed.__sn__statusCode, 405LL));
+        __args[0] = rt_box_bool(rt_eq_long(__sn__HttpResponse_methodNotAllowed(__local_arena__).__sn__statusCode, 405LL));
         __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "methodNotAllowed() should return 405")));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_17);
     } else {
-        __sn__check(__local_arena__, rt_eq_long(__sn__methodNotAllowed.__sn__statusCode, 405LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "methodNotAllowed() should return 405"));
+        __sn__check(__local_arena__, rt_eq_long(__sn__HttpResponse_methodNotAllowed(__local_arena__).__sn__statusCode, 405LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "methodNotAllowed() should return 405"));
     }
     (void)0;
 });
-    RtThreadHandle *__serverError_pending__ = NULL;
-    __sn__HttpResponse __sn__serverError = __sn__HttpResponse_internalServerError(__local_arena__);
     ({
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
-        __args[0] = rt_box_bool(rt_eq_long(__sn__serverError.__sn__statusCode, 500LL));
+        __args[0] = rt_box_bool(rt_eq_long(__sn__HttpResponse_internalServerError(__local_arena__).__sn__statusCode, 500LL));
         __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "internalServerError() should return 500")));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_18);
     } else {
-        __sn__check(__local_arena__, rt_eq_long(__sn__serverError.__sn__statusCode, 500LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "internalServerError() should return 500"));
+        __sn__check(__local_arena__, rt_eq_long(__sn__HttpResponse_internalServerError(__local_arena__).__sn__statusCode, 500LL), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "internalServerError() should return 500"));
     }
     (void)0;
 });
@@ -1073,7 +1054,7 @@ void __sn__testContentTypes(RtManagedArena *__caller_arena__) {
 });
     RtThreadHandle *__jsonRes_pending__ = NULL;
     __sn__HttpResponse __sn__jsonRes = __sn__HttpResponse_ok(__local_arena__);
-    __sn__HttpResponse_json(__local_arena__, &__sn__jsonRes, rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "{\\\"key\\\": \\\"value\\\"}"));
+    __sn__HttpResponse_json(__local_arena__, &__sn__jsonRes, rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "{\"key\": \"value\"}"));
     ({
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
@@ -1119,19 +1100,6 @@ void __sn__testContentTypes(RtManagedArena *__caller_arena__) {
     }
     (void)0;
 });
-    ({
-    if (__rt_interceptor_count > 0) {
-        RtAny __args[2];
-        __args[0] = rt_box_bool(rt_eq_string(((char *)rt_managed_pin(__local_arena__, __sn__jsonRes.__sn__body)), "{\\\"key\\\": \\\"value\\\"}"));
-        __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "json() should set body")));
-        __rt_thunk_args = __args;
-        __rt_thunk_arena = __local_arena__;
-        RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_37);
-    } else {
-        __sn__check(__local_arena__, rt_eq_string(((char *)rt_managed_pin(__local_arena__, __sn__jsonRes.__sn__body)), "{\\\"key\\\": \\\"value\\\"}"), rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, "json() should set body"));
-    }
-    (void)0;
-});
     rt_print_string("  Content type helpers OK\n");
     goto __sn__testContentTypes_return;
 __sn__testContentTypes_return:
@@ -1153,7 +1121,7 @@ void __sn__testSerialization(RtManagedArena *__caller_arena__) {
         __args[0] = rt_box_struct(__local_arena__, (void *)&__sn__res, sizeof(__sn__HttpResponse), 1988968148);
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
-        RtAny __intercepted = rt_call_intercepted("HttpResponse.toString", __args, 1, __thunk_38);
+        RtAny __intercepted = rt_call_intercepted("HttpResponse.toString", __args, 1, __thunk_37);
         __intercept_result = rt_managed_strdup(__local_arena__, RT_HANDLE_NULL, rt_unbox_string(__intercepted));
         memcpy((void *)&__sn__res, rt_unbox_struct(__args[0], 1988968148), sizeof(__sn__HttpResponse));
     } else {
@@ -1162,72 +1130,72 @@ void __sn__testSerialization(RtManagedArena *__caller_arena__) {
     __intercept_result;
 });
     ({
-    bool __iarg_39_0 = rt_str_contains((char *)rt_managed_pin(__local_arena__, __sn__output), "HTTP/1.1 200 OK");
+    bool __iarg_38_0 = rt_str_contains((char *)rt_managed_pin(__local_arena__, __sn__output), "HTTP/1.1 200 OK");
+    if (__rt_interceptor_count > 0) {
+        RtAny __args[2];
+        __args[0] = rt_box_bool(__iarg_38_0);
+        __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, "Should contain status line"));
+        __rt_thunk_args = __args;
+        __rt_thunk_arena = __local_arena__;
+        RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_38);
+    } else {
+        __sn__check(__local_arena__, __iarg_38_0, "Should contain status line");
+    }
+    (void)0;
+});
+    ({
+    bool __iarg_39_0 = rt_str_contains((char *)rt_managed_pin(__local_arena__, __sn__output), "Content-Type: text/plain");
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
         __args[0] = rt_box_bool(__iarg_39_0);
-        __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, "Should contain status line"));
+        __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, "Should contain Content-Type"));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_39);
     } else {
-        __sn__check(__local_arena__, __iarg_39_0, "Should contain status line");
+        __sn__check(__local_arena__, __iarg_39_0, "Should contain Content-Type");
     }
     (void)0;
 });
     ({
-    bool __iarg_40_0 = rt_str_contains((char *)rt_managed_pin(__local_arena__, __sn__output), "Content-Type: text/plain");
+    bool __iarg_40_0 = rt_str_contains((char *)rt_managed_pin(__local_arena__, __sn__output), "Content-Length: 5");
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
         __args[0] = rt_box_bool(__iarg_40_0);
-        __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, "Should contain Content-Type"));
+        __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, "Should contain Content-Length"));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_40);
     } else {
-        __sn__check(__local_arena__, __iarg_40_0, "Should contain Content-Type");
+        __sn__check(__local_arena__, __iarg_40_0, "Should contain Content-Length");
     }
     (void)0;
 });
     ({
-    bool __iarg_41_0 = rt_str_contains((char *)rt_managed_pin(__local_arena__, __sn__output), "Content-Length: 5");
+    bool __iarg_41_0 = rt_str_contains((char *)rt_managed_pin(__local_arena__, __sn__output), "Hello");
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
         __args[0] = rt_box_bool(__iarg_41_0);
-        __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, "Should contain Content-Length"));
+        __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, "Should contain body"));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_41);
     } else {
-        __sn__check(__local_arena__, __iarg_41_0, "Should contain Content-Length");
+        __sn__check(__local_arena__, __iarg_41_0, "Should contain body");
     }
     (void)0;
 });
     ({
-    bool __iarg_42_0 = rt_str_contains((char *)rt_managed_pin(__local_arena__, __sn__output), "Hello");
+    bool __iarg_42_0 = rt_str_contains((char *)rt_managed_pin(__local_arena__, __sn__output), "\r\n\r\n");
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
         __args[0] = rt_box_bool(__iarg_42_0);
-        __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, "Should contain body"));
+        __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, "Should have header/body separator"));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __local_arena__;
         RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_42);
     } else {
-        __sn__check(__local_arena__, __iarg_42_0, "Should contain body");
-    }
-    (void)0;
-});
-    ({
-    bool __iarg_43_0 = rt_str_contains((char *)rt_managed_pin(__local_arena__, __sn__output), "\r\n\r\n");
-    if (__rt_interceptor_count > 0) {
-        RtAny __args[2];
-        __args[0] = rt_box_bool(__iarg_43_0);
-        __args[1] = rt_box_string((char *)rt_managed_pin(__local_arena__, "Should have header/body separator"));
-        __rt_thunk_args = __args;
-        __rt_thunk_arena = __local_arena__;
-        RtAny __intercepted = rt_call_intercepted("check", __args, 2, __thunk_43);
-    } else {
-        __sn__check(__local_arena__, __iarg_43_0, "Should have header/body separator");
+        __sn__check(__local_arena__, __iarg_42_0, "Should have header/body separator");
     }
     (void)0;
 });
@@ -1248,7 +1216,7 @@ __sn__HttpResponse __sn__HttpResponse_new(RtManagedArena *__caller_arena__, long
         __args[0] = rt_box_int(__sn__code);
         __rt_thunk_args = __args;
         __rt_thunk_arena = __caller_arena__;
-        RtAny __intercepted = rt_call_intercepted("statusText", __args, 1, __thunk_44);
+        RtAny __intercepted = rt_call_intercepted("statusText", __args, 1, __thunk_43);
         __intercept_result = rt_managed_strdup(__caller_arena__, RT_HANDLE_NULL, rt_unbox_string(__intercepted));
     } else {
         __intercept_result = __sn__statusText(__caller_arena__, __sn__code);
@@ -1484,19 +1452,19 @@ RtHandle __sn__HttpResponse_toString(RtManagedArena *__caller_arena__, __sn__Htt
         rt_managed_strdup(__caller_arena__, RT_HANDLE_NULL, _r);
     }));
     if (((rt_gt_long(rt_str_length(((char *)rt_managed_pin(__caller_arena__, __sn__self->__sn__body))), 0LL) != 0 && rt_not_bool(({
-    RtHandle __iarg_45_0 = rt_managed_strdup(__caller_arena__, RT_HANDLE_NULL, "Content-Length");
+    RtHandle __iarg_44_0 = rt_managed_strdup(__caller_arena__, RT_HANDLE_NULL, "Content-Length");
     bool __intercept_result;
     if (__rt_interceptor_count > 0) {
         RtAny __args[2];
         __args[0] = rt_box_struct(__caller_arena__, (void *)__sn__self, sizeof(__sn__HttpResponse), 1988968148);
-        __args[1] = rt_box_string((char *)rt_managed_pin(__caller_arena__, __iarg_45_0));
+        __args[1] = rt_box_string((char *)rt_managed_pin(__caller_arena__, __iarg_44_0));
         __rt_thunk_args = __args;
         __rt_thunk_arena = __caller_arena__;
-        RtAny __intercepted = rt_call_intercepted("HttpResponse.hasHeader", __args, 2, __thunk_45);
+        RtAny __intercepted = rt_call_intercepted("HttpResponse.hasHeader", __args, 2, __thunk_44);
         __intercept_result = rt_unbox_bool(__intercepted);
         memcpy((void *)__sn__self, rt_unbox_struct(__args[0], 1988968148), sizeof(__sn__HttpResponse));
     } else {
-        __intercept_result = __sn__HttpResponse_hasHeader(__caller_arena__, __sn__self, __iarg_45_0);
+        __intercept_result = __sn__HttpResponse_hasHeader(__caller_arena__, __sn__self, __iarg_44_0);
     }
     __intercept_result;
 })) != 0) ? 1L : 0L)) {
@@ -1541,7 +1509,7 @@ RtHandle __sn__HttpResponse_toBytes(RtManagedArena *__caller_arena__, __sn__Http
         __args[0] = rt_box_struct(__caller_arena__, (void *)__sn__self, sizeof(__sn__HttpResponse), 1988968148);
         __rt_thunk_args = __args;
         __rt_thunk_arena = __caller_arena__;
-        RtAny __intercepted = rt_call_intercepted("HttpResponse.toString", __args, 1, __thunk_46);
+        RtAny __intercepted = rt_call_intercepted("HttpResponse.toString", __args, 1, __thunk_45);
         __intercept_result = rt_managed_strdup(__caller_arena__, RT_HANDLE_NULL, rt_unbox_string(__intercepted));
         memcpy((void *)__sn__self, rt_unbox_struct(__args[0], 1988968148), sizeof(__sn__HttpResponse));
     } else {
@@ -1750,14 +1718,14 @@ static RtAny __thunk_36(void) {
 }
 
 static RtAny __thunk_37(void) {
-    __sn__check((RtArena *)__rt_thunk_arena, rt_unbox_bool(__rt_thunk_args[0]), rt_managed_strdup((RtArena *)__rt_thunk_arena, RT_HANDLE_NULL, rt_unbox_string(__rt_thunk_args[1])));
-    return rt_box_nil();
-}
-
-static RtAny __thunk_38(void) {
     __sn__HttpResponse *__self = (__sn__HttpResponse *)rt_unbox_struct(__rt_thunk_args[0], 1988968148);
     RtAny __result = rt_box_string((char *)rt_managed_pin((RtArena *)__rt_thunk_arena, __sn__HttpResponse_toString((RtArena *)__rt_thunk_arena, __self)));
     return __result;
+}
+
+static RtAny __thunk_38(void) {
+    __sn__check((RtArena *)__rt_thunk_arena, rt_unbox_bool(__rt_thunk_args[0]), rt_managed_strdup((RtArena *)__rt_thunk_arena, RT_HANDLE_NULL, rt_unbox_string(__rt_thunk_args[1])));
+    return rt_box_nil();
 }
 
 static RtAny __thunk_39(void) {
@@ -1781,22 +1749,17 @@ static RtAny __thunk_42(void) {
 }
 
 static RtAny __thunk_43(void) {
-    __sn__check((RtArena *)__rt_thunk_arena, rt_unbox_bool(__rt_thunk_args[0]), rt_managed_strdup((RtArena *)__rt_thunk_arena, RT_HANDLE_NULL, rt_unbox_string(__rt_thunk_args[1])));
-    return rt_box_nil();
-}
-
-static RtAny __thunk_44(void) {
     RtAny __result = rt_box_string((char *)rt_managed_pin((RtArena *)__rt_thunk_arena, __sn__statusText((RtArena *)__rt_thunk_arena, rt_unbox_int(__rt_thunk_args[0]))));
     return __result;
 }
 
-static RtAny __thunk_45(void) {
+static RtAny __thunk_44(void) {
     __sn__HttpResponse *__self = (__sn__HttpResponse *)rt_unbox_struct(__rt_thunk_args[0], 1988968148);
     RtAny __result = rt_box_bool(__sn__HttpResponse_hasHeader((RtArena *)__rt_thunk_arena, __self, rt_managed_strdup((RtArena *)__rt_thunk_arena, RT_HANDLE_NULL, rt_unbox_string(__rt_thunk_args[1]))));
     return __result;
 }
 
-static RtAny __thunk_46(void) {
+static RtAny __thunk_45(void) {
     __sn__HttpResponse *__self = (__sn__HttpResponse *)rt_unbox_struct(__rt_thunk_args[0], 1988968148);
     RtAny __result = rt_box_string((char *)rt_managed_pin((RtArena *)__rt_thunk_arena, __sn__HttpResponse_toString((RtArena *)__rt_thunk_arena, __self)));
     return __result;

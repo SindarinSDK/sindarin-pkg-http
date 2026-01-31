@@ -1,0 +1,11 @@
+# Reproduction: String literal codegen issue
+
+fn myCheck(condition: bool, message: str): void =>
+    if !condition =>
+        print($"FAIL: {message}\n")
+
+fn main(): void =>
+    var text: str = "Hello World"
+
+    # This pattern causes codegen error
+    myCheck(text.contains("Hello"), "Should contain Hello")

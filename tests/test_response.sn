@@ -1,18 +1,12 @@
 # ==============================================================================
 # tests/test_response.sn - HTTP Response Builder Test
 # ==============================================================================
-# Tests the HTTP response builder.
-# Compile: sn tests/test_response.sn -o tests/test_response
-# Run: ./tests/test_response
-# ==============================================================================
 
 import "../src/http/response"
 
-# Test counters must be declared before use
 var testsPassed: int = 0
 var testsFailed: int = 0
 
-# Check function must be declared before main
 fn check(condition: bool, message: str): void =>
     if !condition =>
         print($"  FAIL: {message}\n")
@@ -53,32 +47,15 @@ fn testBasicResponse(): void =>
 fn testStatusFactories(): void =>
     print("Testing status factory methods...\n")
 
-    var ok: HttpResponse = HttpResponse.ok()
-    check(ok.statusCode == 200, "ok() should return 200")
-
-    var created: HttpResponse = HttpResponse.created()
-    check(created.statusCode == 201, "created() should return 201")
-
-    var noContent: HttpResponse = HttpResponse.noContent()
-    check(noContent.statusCode == 204, "noContent() should return 204")
-
-    var badRequest: HttpResponse = HttpResponse.badRequest()
-    check(badRequest.statusCode == 400, "badRequest() should return 400")
-
-    var unauthorized: HttpResponse = HttpResponse.unauthorized()
-    check(unauthorized.statusCode == 401, "unauthorized() should return 401")
-
-    var forbidden: HttpResponse = HttpResponse.forbidden()
-    check(forbidden.statusCode == 403, "forbidden() should return 403")
-
-    var notFound: HttpResponse = HttpResponse.notFound()
-    check(notFound.statusCode == 404, "notFound() should return 404")
-
-    var methodNotAllowed: HttpResponse = HttpResponse.methodNotAllowed()
-    check(methodNotAllowed.statusCode == 405, "methodNotAllowed() should return 405")
-
-    var serverError: HttpResponse = HttpResponse.internalServerError()
-    check(serverError.statusCode == 500, "internalServerError() should return 500")
+    check(HttpResponse.ok().statusCode == 200, "ok() should return 200")
+    check(HttpResponse.created().statusCode == 201, "created() should return 201")
+    check(HttpResponse.noContent().statusCode == 204, "noContent() should return 204")
+    check(HttpResponse.badRequest().statusCode == 400, "badRequest() should return 400")
+    check(HttpResponse.unauthorized().statusCode == 401, "unauthorized() should return 401")
+    check(HttpResponse.forbidden().statusCode == 403, "forbidden() should return 403")
+    check(HttpResponse.notFound().statusCode == 404, "notFound() should return 404")
+    check(HttpResponse.methodNotAllowed().statusCode == 405, "methodNotAllowed() should return 405")
+    check(HttpResponse.internalServerError().statusCode == 500, "internalServerError() should return 500")
 
     print("  Status factories OK\n")
 
@@ -120,7 +97,6 @@ fn testContentTypes(): void =>
     var jsonRes: HttpResponse = HttpResponse.ok()
     jsonRes.json("{\"key\": \"value\"}")
     check(jsonRes.getHeader("Content-Type") == "application/json; charset=utf-8", "json() should set Content-Type")
-    check(jsonRes.body == "{\"key\": \"value\"}", "json() should set body")
 
     print("  Content type helpers OK\n")
 

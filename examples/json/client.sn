@@ -1,0 +1,169 @@
+# ==============================================================================
+# examples/json/client.sn - JSON REST API Client
+# ==============================================================================
+# Tests the JSON API server with a sequence of requests.
+# Run: make examples-json-client (after starting the server)
+#
+# Test sequence:
+#   1. POST   /items      - Create an item
+#   2. GET    /items      - List all items
+#   3. PUT    /items/{id} - Update the item
+#   4. GET    /items/{id} - Get the updated item
+#   5. DELETE /items/{id} - Delete the item
+#   6. GET    /items      - Verify empty list
+# ==============================================================================
+
+import "../../src/server"
+import "../../.sn/sindarin-pkg-sdk/src/time/time"
+
+# Parse Content-Length from headers
+fn getContentLength(headers: str): int =>
+    var lines: str[] = headers.split("\n")
+    for line in lines =>
+        var lower: str = line.toLower()
+        if lower.startsWith("content-length:") =>
+            var value: str = line.substring(15, line.length).trim()
+            return value.toInt()
+    return 0
+
+# Find header end position in buffer
+fn findHeaderEnd(data: str): int =>
+    var idx: int = data.indexOf("\r\n\r\n")
+    if idx >= 0 =>
+        return idx + 4
+    idx = data.indexOf("\n\n")
+    if idx >= 0 =>
+        return idx + 2
+    return -1
+
+# Send an HTTP request and return the response
+fn httpRequest(method: str, path: str, body: str): str =>
+    var conn: TcpStream = TcpStream.connect("127.0.0.1:8081")
+
+    # Send request
+    var req: str = $"{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:8081\r\nConnection: close\r\n"
+    if body.length > 0 =>
+        req = $"{req}Content-Type: application/json\r\nContent-Length: {body.length}\r\n\r\n{body}"
+    else =>
+        req = $"{req}\r\n"
+    conn.write(req.toBytes())
+
+    # Read response in chunks
+    var response: str = ""
+    var headerEnd: int = -1
+    var contentLength: int = 0
+    var bodyStart: int = 0
+
+    # Read until we have headers
+    while headerEnd < 0 =>
+        var chunk: byte[] = conn.read(4096)
+        if chunk.length == 0 =>
+            break
+        response = $"{response}{chunk.toString()}"
+        headerEnd = findHeaderEnd(response)
+
+    if headerEnd > 0 =>
+        var headers: str = response.substring(0, headerEnd)
+        contentLength = getContentLength(headers)
+        bodyStart = headerEnd
+
+    # Read remaining body if needed
+    var currentBodyLen: int = response.length - bodyStart
+    while currentBodyLen < contentLength =>
+        var chunk: byte[] = conn.read(4096)
+        if chunk.length == 0 =>
+            break
+        response = $"{response}{chunk.toString()}"
+        currentBodyLen = response.length - bodyStart
+
+    conn.close()
+    return response
+
+# Extract response body (after headers)
+fn extractBody(response: str): str =>
+    var idx: int = findHeaderEnd(response)
+    if idx >= 0 =>
+        return response.substring(idx, response.length)
+    return response
+
+# Extract status line from response
+fn extractStatus(response: str): str =>
+    var idx: int = response.indexOf("\r\n")
+    if idx < 0 =>
+        idx = response.indexOf("\n")
+    if idx >= 0 =>
+        return response.substring(0, idx)
+    return response
+
+fn main(): void =>
+    print("JSON REST API Client\n")
+    print("====================\n\n")
+
+    var totalStart: Time = Time.now()
+    var start: Time
+    var elapsed: long
+
+    # Test 1: POST - Create an item
+    print("1. POST /items - Create item\n")
+    var postBody: str = "{\"name\": \"Test Item\", \"value\": 42}"
+    start = Time.now()
+    var postResp: str = httpRequest("POST", "/items", postBody)
+    elapsed = Time.now().diff(start)
+    print($"   Time: {elapsed}ms\n")
+    print($"   Status: {extractStatus(postResp)}\n")
+    var createdBody: str = extractBody(postResp)
+    print($"   Body: {createdBody}\n\n")
+
+    # Parse the created item's ID
+    var created: Json = Json.parse(createdBody)
+    var itemId: int = created.get("id").asInt()
+    var itemPath: str = $"/items/{itemId}"
+
+    # Test 2: GET - List all items
+    print("2. GET /items - List all items\n")
+    start = Time.now()
+    var listResp: str = httpRequest("GET", "/items", "")
+    elapsed = Time.now().diff(start)
+    print($"   Time: {elapsed}ms\n")
+    print($"   Status: {extractStatus(listResp)}\n")
+    print($"   Body: {extractBody(listResp)}\n\n")
+
+    # Test 3: PUT - Update the item
+    print($"3. PUT {itemPath} - Update item\n")
+    var putBody: str = "{\"name\": \"Updated Item\", \"value\": 100}"
+    start = Time.now()
+    var putResp: str = httpRequest("PUT", itemPath, putBody)
+    elapsed = Time.now().diff(start)
+    print($"   Time: {elapsed}ms\n")
+    print($"   Status: {extractStatus(putResp)}\n")
+    print($"   Body: {extractBody(putResp)}\n\n")
+
+    # Test 4: GET - Get the updated item
+    print($"4. GET {itemPath} - Get updated item\n")
+    start = Time.now()
+    var getResp: str = httpRequest("GET", itemPath, "")
+    elapsed = Time.now().diff(start)
+    print($"   Time: {elapsed}ms\n")
+    print($"   Status: {extractStatus(getResp)}\n")
+    print($"   Body: {extractBody(getResp)}\n\n")
+
+    # Test 5: DELETE - Delete the item
+    print($"5. DELETE {itemPath} - Delete item\n")
+    start = Time.now()
+    var delResp: str = httpRequest("DELETE", itemPath, "")
+    elapsed = Time.now().diff(start)
+    print($"   Time: {elapsed}ms\n")
+    print($"   Status: {extractStatus(delResp)}\n")
+    print($"   Body: {extractBody(delResp)}\n\n")
+
+    # Test 6: GET - Verify empty list
+    print("6. GET /items - Verify empty list\n")
+    start = Time.now()
+    var finalResp: str = httpRequest("GET", "/items", "")
+    elapsed = Time.now().diff(start)
+    print($"   Time: {elapsed}ms\n")
+    print($"   Status: {extractStatus(finalResp)}\n")
+    print($"   Body: {extractBody(finalResp)}\n\n")
+
+    var totalElapsed: long = Time.now().diff(totalStart)
+    print($"All tests completed in {totalElapsed}ms\n")

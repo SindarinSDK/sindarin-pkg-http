@@ -29,6 +29,7 @@ fn main(): void =>
     testQueryParams()
     testMethodHelpers()
     testBodyParsing()
+    testJsonParsing()
 
     print($"\nTests passed: {testsPassed}, failed: {testsFailed}\n")
     if testsFailed == 0 =>
@@ -135,3 +136,35 @@ fn testBodyParsing(): void =>
     check(noBodyReq.body == "", "Body should be empty")
 
     print("  Body parsing OK\n")
+
+fn testJsonParsing(): void =>
+    print("Testing JSON body parsing...\n")
+
+    # Test isJson() with application/json content type
+    var jsonReq: str = "POST /api/users HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"name\": \"Alice\", \"age\": 30}"
+    var req: HttpRequest = HttpRequest.parse(jsonReq)
+
+    check(req.isJson() == true, "Should detect JSON content type")
+    check(req.hasBody() == true, "Should have body")
+
+    var data: Json = req.json()
+    check(data.has("name") == true, "JSON should have name field")
+    check(data.has("age") == true, "JSON should have age field")
+    check(data.get("name").asString() == "Alice", "name should be Alice")
+    check(data.get("age").asInt() == 30, "age should be 30")
+
+    # Test isJson() with non-JSON content type
+    var textReq: HttpRequest = HttpRequest.parse("POST / HTTP/1.1\r\nContent-Type: text/plain\r\n\r\nHello")
+    check(textReq.isJson() == false, "Should not detect JSON for text/plain")
+
+    # Test isJson() with charset in content type
+    var jsonCharsetReq: str = "POST / HTTP/1.1\r\nContent-Type: application/json; charset=utf-8\r\n\r\n{}"
+    var req2: HttpRequest = HttpRequest.parse(jsonCharsetReq)
+    check(req2.isJson() == true, "Should detect JSON with charset")
+
+    # Test json() with empty body returns empty object
+    var emptyBodyReq: HttpRequest = HttpRequest.parse("POST / HTTP/1.1\r\n\r\n")
+    var emptyJson: Json = emptyBodyReq.json()
+    check(emptyJson.isObject() == true, "Empty body should return JSON object")
+
+    print("  JSON parsing OK\n")

@@ -10,7 +10,14 @@
 #   print($"Method: {req.method}\n")
 #   print($"Path: {req.path}\n")
 #   var contentType: str = req.getHeader("Content-Type")
+#
+#   # JSON body parsing
+#   if req.isJson() =>
+#       var data: Json = req.json()
+#       var name: str = data.get("name").asString()
 # ==============================================================================
+
+import "../.sn/sindarin-pkg-sdk/src/encoding/json"
 
 # ==============================================================================
 # Header Structure
@@ -156,6 +163,22 @@ struct HttpRequest =>
 
     fn hasBody(): bool =>
         return self.body.length > 0
+
+    # ==========================================================================
+    # JSON Methods
+    # ==========================================================================
+
+    # Check if the request has a JSON content type
+    fn isJson(): bool =>
+        var ct: str = self.contentType().toLower()
+        return ct.startsWith("application/json")
+
+    # Parse the request body as JSON
+    # Returns an empty JSON object if parsing fails or body is empty
+    fn json(): Json =>
+        if self.body.length == 0 =>
+            return Json.object()
+        return Json.parse(self.body)
 
     # ==========================================================================
     # Method Helpers

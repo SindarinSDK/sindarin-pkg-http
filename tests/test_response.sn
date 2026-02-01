@@ -22,6 +22,7 @@ fn main(): void =>
     testStatusFactories()
     testHeaders()
     testContentTypes()
+    testJsonData()
     testSerialization()
 
     print($"\nTests passed: {testsPassed}, failed: {testsFailed}\n")
@@ -99,6 +100,42 @@ fn testContentTypes(): void =>
     check(jsonRes.getHeader("Content-Type") == "application/json; charset=utf-8", "json() should set Content-Type")
 
     print("  Content type helpers OK\n")
+
+fn testJsonData(): void =>
+    print("Testing JSON data serialization...\n")
+
+    # Test jsonData() with Json object
+    var data: Json = Json.object()
+    data.set("message", Json.ofString("Hello"))
+    data.set("count", Json.ofInt(42))
+
+    var res: HttpResponse = HttpResponse.ok()
+    res.jsonData(data)
+
+    check(res.getHeader("Content-Type") == "application/json; charset=utf-8", "jsonData() should set Content-Type")
+    check(res.body.contains("message"), "Body should contain 'message' key")
+    check(res.body.contains("Hello"), "Body should contain 'Hello' value")
+    check(res.body.contains("count"), "Body should contain 'count' key")
+    check(res.body.contains("42"), "Body should contain '42' value")
+
+    # Test jsonPretty() for pretty-printed output
+    var prettyRes: HttpResponse = HttpResponse.ok()
+    prettyRes.jsonPretty(data)
+    check(prettyRes.getHeader("Content-Type") == "application/json; charset=utf-8", "jsonPretty() should set Content-Type")
+    check(prettyRes.body.contains("\n"), "Pretty JSON should contain newlines")
+
+    # Test with array
+    var arr: Json = Json.array()
+    arr.append(Json.ofInt(1))
+    arr.append(Json.ofInt(2))
+    arr.append(Json.ofInt(3))
+
+    var arrRes: HttpResponse = HttpResponse.ok()
+    arrRes.jsonData(arr)
+    check(arrRes.body.contains("["), "Array JSON should contain bracket")
+    check(arrRes.body.contains("1"), "Array should contain 1")
+
+    print("  JSON data serialization OK\n")
 
 fn testSerialization(): void =>
     print("Testing response serialization...\n")

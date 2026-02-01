@@ -2,9 +2,15 @@
 # response.sn - HTTP Response Builder
 # ==============================================================================
 # Builds HTTP/1.1 responses with headers and body.
+#
+# JSON response usage:
+#   var data: Json = Json.object()
+#   data.set("message", Json.ofString("Hello"))
+#   var res: HttpResponse = HttpResponse.ok().jsonData(data)
 # ==============================================================================
 
 import "status"
+import "../.sn/sindarin-pkg-sdk/src/encoding/json"
 
 # ==============================================================================
 # ResponseHeader Structure
@@ -103,6 +109,18 @@ struct HttpResponse =>
     fn json(content: str): HttpResponse =>
         self.setHeader("Content-Type", "application/json; charset=utf-8")
         self.body = content
+        return self
+
+    # Serialize a Json object as the response body
+    fn jsonData(data: Json): HttpResponse =>
+        self.setHeader("Content-Type", "application/json; charset=utf-8")
+        self.body = data.toString()
+        return self
+
+    # Serialize a Json object with pretty printing
+    fn jsonPretty(data: Json): HttpResponse =>
+        self.setHeader("Content-Type", "application/json; charset=utf-8")
+        self.body = data.toPrettyString()
         return self
 
     # ==========================================================================

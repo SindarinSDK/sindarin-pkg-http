@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Phony targets
 #------------------------------------------------------------------------------
-.PHONY: all test clean help
+.PHONY: all test clean help examples-html
 
 # Disable implicit rules for .sn.c files (these are compiled by the Sindarin compiler)
 %.sn: %.sn.c
@@ -82,13 +82,28 @@ clean:
 # help - Show available targets
 #------------------------------------------------------------------------------
 help:
-	@echo "Sindarin SDK"
+	@echo "Sindarin HTTP Package"
 	@echo ""
 	@echo "Targets:"
-	@echo "  make test         Run SDK tests"
-	@echo "  make clean        Remove build artifacts"
-	@echo "  make help         Show this help"
+	@echo "  make test           Run tests"
+	@echo "  make examples-html  Run HTML static file server example"
+	@echo "  make clean          Remove build artifacts"
+	@echo "  make help           Show this help"
 	@echo ""
 	@echo "Dependencies are managed via sn.yaml package references."
 	@echo ""
 	@echo "Platform: $(PLATFORM)"
+
+#------------------------------------------------------------------------------
+# examples-html - Run the HTML static file server example
+#------------------------------------------------------------------------------
+EXAMPLES_DIR := examples
+HTML_SERVER_SN := $(EXAMPLES_DIR)/html/server.sn
+HTML_SERVER_BIN := $(BIN_DIR)/html_server$(EXE_EXT)
+
+$(HTML_SERVER_BIN): $(HTML_SERVER_SN) | $(BIN_DIR)
+	@echo "Compiling html/server.sn..."
+	@$(SN) $(HTML_SERVER_SN) -o $(HTML_SERVER_BIN) -l 1
+
+examples-html: $(HTML_SERVER_BIN)
+	@$(HTML_SERVER_BIN)

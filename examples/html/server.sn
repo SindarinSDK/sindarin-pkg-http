@@ -1,0 +1,74 @@
+# ==============================================================================
+# examples/html/server.sn - Static HTML File Server
+# ==============================================================================
+# Serves static HTML, CSS, and other files from the content directory.
+# Run: make examples-html
+# ==============================================================================
+
+import "../../src/server"
+import "../../.sn/sindarin-pkg-sdk/src/io/textfile"
+import "../../.sn/sindarin-pkg-sdk/src/io/path"
+
+# Get content type based on file extension
+fn contentType(ext: str): str =>
+    if ext == "html" =>
+        return "text/html; charset=utf-8"
+    if ext == "css" =>
+        return "text/css; charset=utf-8"
+    if ext == "js" =>
+        return "application/javascript; charset=utf-8"
+    if ext == "json" =>
+        return "application/json; charset=utf-8"
+    if ext == "png" =>
+        return "image/png"
+    if ext == "jpg" =>
+        return "image/jpeg"
+    if ext == "jpeg" =>
+        return "image/jpeg"
+    if ext == "gif" =>
+        return "image/gif"
+    if ext == "svg" =>
+        return "image/svg+xml"
+    if ext == "ico" =>
+        return "image/x-icon"
+    return "text/plain; charset=utf-8"
+
+# Serve static files from content directory
+fn serveStatic(req: HttpRequest): HttpResponse =>
+    # Get the requested path
+    var reqPath: str = req.path
+
+    # Default to index.html for root
+    if reqPath == "/" =>
+        reqPath = "/index.html"
+
+    # Build full file path (relative to this script's location)
+    var filePath: str = $"examples/html/content{reqPath}"
+
+    # Check if file exists
+    if !TextFile.exists(filePath) =>
+        return HttpResponse.notFound().text($"Not found: {reqPath}")
+
+    # Read file content
+    var content: str = TextFile.readAll(filePath)
+
+    # Get content type from extension
+    var ext: str = Path.extension(filePath)
+    var ct: str = contentType(ext)
+
+    # Return response with appropriate content type
+    return HttpResponse.ok().setHeader("Content-Type", ct).setBody(content)
+
+fn main(): void =>
+    print("Static HTML Server\n")
+    print("==================\n\n")
+
+    # Create router
+    var router: Router = Router.new()
+    router.get("/**", serveStatic)
+
+    # Create and start server
+    var server: HttpServer = HttpServer.new(router)
+    print("Serving content from examples/html/content/\n")
+    print("Open http://localhost:8080 in your browser\n\n")
+    server.listen(8080)

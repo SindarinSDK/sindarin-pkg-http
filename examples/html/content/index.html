@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sindarin HTTP Server</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Sindarin HTTP Server</h1>
+            <p class="tagline">A simple static file server written in Sindarin</p>
+        </header>
+
+        <main>
+            <section class="card">
+                <h2>Welcome</h2>
+                <p>
+                    This page is being served by a Sindarin HTTP server.
+                    The server reads static files from the <code>content</code> directory
+                    and serves them with the appropriate content type.
+                </p>
+            </section>
+
+            <section class="card">
+                <h2>Features</h2>
+                <ul>
+                    <li>Static file serving</li>
+                    <li>Automatic content-type detection</li>
+                    <li>CSS stylesheet support</li>
+                    <li>Clean URL routing</li>
+                </ul>
+            </section>
+
+            <section class="card">
+                <h2>How It Works</h2>
+                <p>
+                    The server uses the <code>sindarin-pkg-http</code> package to handle
+                    HTTP requests and responses. When you request a file, it:
+                </p>
+                <ol>
+                    <li>Checks if the file exists in the content directory</li>
+                    <li>Determines the content type from the file extension</li>
+                    <li>Reads the file and returns it with proper headers</li>
+                </ol>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by Sindarin</p>
+        </footer>
+    </div>
+</body>
+</html>

@@ -5,3 +5,6 @@ dependencies:
 - name: sindarin-pkg-sdk
   git: git@github.com:SindarinSDK/sindarin-pkg-sdk.git
   branch: main
+- name: sindarin-pkg-test
+  git: git@github.com:SindarinSDK/sindarin-pkg-test.git
+  branch: main

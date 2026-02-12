@@ -1,0 +1,202 @@
+# ==============================================================================
+# examples/simple/client.sn - Simple HTTP Client (No JSON)
+# ==============================================================================
+# Tests the simple server with a sequence of requests to exercise the
+# network/HTTP infrastructure without using any JSON.
+#
+# Run: make examples-simple-client (after starting the server)
+#
+# Test sequence:
+#   1. Multiple /ping requests
+#   2. Multiple /counter requests
+#   3. Multiple /echo requests with varying body sizes
+#   4. /stats to see totals
+#   5. /data/{n} requests with varying sizes
+# ==============================================================================
+
+import "../../src/server"
+import "../../.sn/sindarin-pkg-sdk/src/time/time"
+
+# Parse Content-Length from headers
+fn getContentLength(headers: str): int =>
+    var lines: str[] = headers.split("\n")
+    for line in lines =>
+        var lower: str = line.toLower()
+        if lower.startsWith("content-length:") =>
+            var value: str = line.substring(15, line.length).trim()
+            return value.toInt()
+    return 0
+
+# Find header end position in buffer
+fn findHeaderEnd(data: str): int =>
+    var idx: int = data.indexOf("\r\n\r\n")
+    if idx >= 0 =>
+        return idx + 4
+    idx = data.indexOf("\n\n")
+    if idx >= 0 =>
+        return idx + 2
+    return -1
+
+# Send an HTTP request and return the response body
+fn httpRequest(method: str, path: str, body: str): str =>
+    var conn: TcpStream = TcpStream.connect("127.0.0.1:8082")
+
+    # Send request
+    var req: str = $"{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:8082\r\nConnection: close\r\n"
+    if body.length > 0 =>
+        req = $"{req}Content-Type: text/plain\r\nContent-Length: {body.length}\r\n\r\n{body}"
+    else =>
+        req = $"{req}\r\n"
+    conn.write(req.toBytes())
+
+    # Read response in chunks
+    var response: str = ""
+    var headerEnd: int = -1
+    var contentLength: int = 0
+    var bodyStart: int = 0
+
+    # Read until we have headers
+    while headerEnd < 0 =>
+        var chunk: byte[] = conn.read(4096)
+        if chunk.length == 0 =>
+            break
+        response = $"{response}{chunk.toString()}"
+        headerEnd = findHeaderEnd(response)
+
+    if headerEnd > 0 =>
+        var headers: str = response.substring(0, headerEnd)
+        contentLength = getContentLength(headers)
+        bodyStart = headerEnd
+
+    # Read remaining body if needed
+    var currentBodyLen: int = response.length - bodyStart
+    while currentBodyLen < contentLength =>
+        var chunk: byte[] = conn.read(4096)
+        if chunk.length == 0 =>
+            break
+        response = $"{response}{chunk.toString()}"
+        currentBodyLen = response.length - bodyStart
+
+    conn.close()
+
+    # Return just the body
+    if bodyStart > 0 =>
+        return response.substring(bodyStart, response.length)
+    return response
+
+# Generate a string of n characters
+fn generateData(n: int): str =>
+    var data: str = ""
+    var i: int = 0
+    while i < n =>
+        data = $"{data}X"
+        i = i + 1
+    return data
+
+fn main(): void =>
+    print("Simple HTTP Client (No JSON)\n")
+    print("============================\n\n")
+
+    var totalStart: Time = Time.now()
+    var start: Time
+    var elapsed: long
+    var resp: str
+    var i: int
+
+    # =========================================================================
+    # Test 1: Multiple /ping requests
+    # =========================================================================
+    print("1. Ping test (10 requests)\n")
+    start = Time.now()
+    i = 0
+    while i < 10 =>
+        resp = httpRequest("GET", "/ping", "")
+        i = i + 1
+    elapsed = Time.now().diff(start)
+    print($"   Last response: {resp}\n")
+    print($"   Time: {elapsed}ms for 10 requests\n\n")
+
+    # =========================================================================
+    # Test 2: Multiple /counter requests
+    # =========================================================================
+    print("2. Counter test (10 requests)\n")
+    start = Time.now()
+    i = 0
+    while i < 10 =>
+        resp = httpRequest("GET", "/counter", "")
+        i = i + 1
+    elapsed = Time.now().diff(start)
+    print($"   Final counter: {resp}\n")
+    print($"   Time: {elapsed}ms for 10 requests\n\n")
+
+    # =========================================================================
+    # Test 3: Echo requests with varying body sizes
+    # =========================================================================
+    print("3. Echo test (varying body sizes)\n")
+    start = Time.now()
+
+    # Small body
+    var smallBody: str = "Hello, World!"
+    resp = httpRequest("POST", "/echo", smallBody)
+    print($"   Small ({smallBody.length} bytes): {resp.length} bytes returned\n")
+
+    # Medium body
+    var mediumBody: str = generateData(500)
+    resp = httpRequest("POST", "/echo", mediumBody)
+    print($"   Medium ({mediumBody.length} bytes): {resp.length} bytes returned\n")
+
+    # Large body
+    var largeBody: str = generateData(2000)
+    resp = httpRequest("POST", "/echo", largeBody)
+    print($"   Large ({largeBody.length} bytes): {resp.length} bytes returned\n")
+
+    elapsed = Time.now().diff(start)
+    print($"   Time: {elapsed}ms for 3 echo requests\n\n")
+
+    # =========================================================================
+    # Test 4: Data requests with varying sizes
+    # =========================================================================
+    print("4. Data test (varying response sizes)\n")
+    start = Time.now()
+
+    resp = httpRequest("GET", "/data/100", "")
+    print($"   /data/100: {resp.length} bytes\n")
+
+    resp = httpRequest("GET", "/data/1000", "")
+    print($"   /data/1000: {resp.length} bytes\n")
+
+    resp = httpRequest("GET", "/data/5000", "")
+    print($"   /data/5000: {resp.length} bytes\n")
+
+    elapsed = Time.now().diff(start)
+    print($"   Time: {elapsed}ms for 3 data requests\n\n")
+
+    # =========================================================================
+    # Test 5: Get stats
+    # =========================================================================
+    print("5. Stats\n")
+    resp = httpRequest("GET", "/stats", "")
+    print($"   {resp}\n\n")
+
+    # =========================================================================
+    # Test 6: Stress test - rapid requests
+    # =========================================================================
+    print("6. Stress test (50 rapid ping requests)\n")
+    start = Time.now()
+    i = 0
+    while i < 50 =>
+        resp = httpRequest("GET", "/ping", "")
+        i = i + 1
+    elapsed = Time.now().diff(start)
+    print($"   Completed 50 requests in {elapsed}ms\n")
+    print($"   Average: {elapsed / 50}ms per request\n\n")
+
+    # =========================================================================
+    # Final stats
+    # =========================================================================
+    print("Final Stats:\n")
+    resp = httpRequest("GET", "/stats", "")
+    print($"   {resp}\n\n")
+
+    var totalElapsed: long = Time.now().diff(totalStart)
+    print($"All tests completed in {totalElapsed}ms\n")

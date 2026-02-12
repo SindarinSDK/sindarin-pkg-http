@@ -5,8 +5,12 @@
 #
 # Usage:
 #   import "status"
-#   var code: int = STATUS_OK
-#   var text: str = statusText(200)  # "OK"
+#
+#   var text: str = HttpStatus.text(200)  # "OK"
+#   var ok: bool = HttpStatus.isSuccess(200)
+#
+#   # Status code constants
+#   var code: int = STATUS_OK  # 200
 # ==============================================================================
 
 # ==============================================================================
@@ -65,76 +69,84 @@ var STATUS_GATEWAY_TIMEOUT: int = 504
 var STATUS_HTTP_VERSION_NOT_SUPPORTED: int = 505
 
 # ==============================================================================
-# Status Text Lookup
+# HttpStatus Static-Only Type Definition
 # ==============================================================================
+# HttpStatus is a static-only type with no instances - all methods are static.
+# Provides status text lookup and category classification.
 
-fn statusText(code: int): str =>
-    # 1xx
-    if code == 100 => return "Continue"
-    if code == 101 => return "Switching Protocols"
+struct HttpStatus =>
 
-    # 2xx
-    if code == 200 => return "OK"
-    if code == 201 => return "Created"
-    if code == 202 => return "Accepted"
-    if code == 204 => return "No Content"
-    if code == 205 => return "Reset Content"
-    if code == 206 => return "Partial Content"
+    # ==========================================================================
+    # Text Lookup
+    # ==========================================================================
 
-    # 3xx
-    if code == 301 => return "Moved Permanently"
-    if code == 302 => return "Found"
-    if code == 303 => return "See Other"
-    if code == 304 => return "Not Modified"
-    if code == 307 => return "Temporary Redirect"
-    if code == 308 => return "Permanent Redirect"
+    static fn text(code: int): str =>
+        # 1xx
+        if code == 100 => return "Continue"
+        if code == 101 => return "Switching Protocols"
 
-    # 4xx
-    if code == 400 => return "Bad Request"
-    if code == 401 => return "Unauthorized"
-    if code == 403 => return "Forbidden"
-    if code == 404 => return "Not Found"
-    if code == 405 => return "Method Not Allowed"
-    if code == 406 => return "Not Acceptable"
-    if code == 408 => return "Request Timeout"
-    if code == 409 => return "Conflict"
-    if code == 410 => return "Gone"
-    if code == 411 => return "Length Required"
-    if code == 413 => return "Payload Too Large"
-    if code == 414 => return "URI Too Long"
-    if code == 415 => return "Unsupported Media Type"
-    if code == 422 => return "Unprocessable Entity"
-    if code == 429 => return "Too Many Requests"
+        # 2xx
+        if code == 200 => return "OK"
+        if code == 201 => return "Created"
+        if code == 202 => return "Accepted"
+        if code == 204 => return "No Content"
+        if code == 205 => return "Reset Content"
+        if code == 206 => return "Partial Content"
 
-    # 5xx
-    if code == 500 => return "Internal Server Error"
-    if code == 501 => return "Not Implemented"
-    if code == 502 => return "Bad Gateway"
-    if code == 503 => return "Service Unavailable"
-    if code == 504 => return "Gateway Timeout"
-    if code == 505 => return "HTTP Version Not Supported"
+        # 3xx
+        if code == 301 => return "Moved Permanently"
+        if code == 302 => return "Found"
+        if code == 303 => return "See Other"
+        if code == 304 => return "Not Modified"
+        if code == 307 => return "Temporary Redirect"
+        if code == 308 => return "Permanent Redirect"
 
-    # Unknown
-    return "Unknown"
+        # 4xx
+        if code == 400 => return "Bad Request"
+        if code == 401 => return "Unauthorized"
+        if code == 403 => return "Forbidden"
+        if code == 404 => return "Not Found"
+        if code == 405 => return "Method Not Allowed"
+        if code == 406 => return "Not Acceptable"
+        if code == 408 => return "Request Timeout"
+        if code == 409 => return "Conflict"
+        if code == 410 => return "Gone"
+        if code == 411 => return "Length Required"
+        if code == 413 => return "Payload Too Large"
+        if code == 414 => return "URI Too Long"
+        if code == 415 => return "Unsupported Media Type"
+        if code == 422 => return "Unprocessable Entity"
+        if code == 429 => return "Too Many Requests"
 
-# ==============================================================================
-# Status Category Helpers
-# ==============================================================================
+        # 5xx
+        if code == 500 => return "Internal Server Error"
+        if code == 501 => return "Not Implemented"
+        if code == 502 => return "Bad Gateway"
+        if code == 503 => return "Service Unavailable"
+        if code == 504 => return "Gateway Timeout"
+        if code == 505 => return "HTTP Version Not Supported"
 
-fn isInformational(code: int): bool =>
-    return code >= 100 && code < 200
+        # Unknown
+        return "Unknown"
 
-fn isSuccess(code: int): bool =>
-    return code >= 200 && code < 300
+    # ==========================================================================
+    # Category Helpers
+    # ==========================================================================
 
-fn isRedirect(code: int): bool =>
-    return code >= 300 && code < 400
+    static fn isInformational(code: int): bool =>
+        return code >= 100 && code < 200
 
-fn isClientError(code: int): bool =>
-    return code >= 400 && code < 500
+    static fn isSuccess(code: int): bool =>
+        return code >= 200 && code < 300
 
-fn isServerError(code: int): bool =>
-    return code >= 500 && code < 600
+    static fn isRedirect(code: int): bool =>
+        return code >= 300 && code < 400
 
-fn isError(code: int): bool =>
-    return code >= 400
+    static fn isClientError(code: int): bool =>
+        return code >= 400 && code < 500
+
+    static fn isServerError(code: int): bool =>
+        return code >= 500 && code < 600
+
+    static fn isError(code: int): bool =>
+        return code >= 400

@@ -36,7 +36,7 @@ struct HttpResponse =>
     # ==========================================================================
 
     static fn new(code: int): HttpResponse =>
-        var res: HttpResponse = HttpResponse { statusCode: code, statusText: statusText(code), version: "HTTP/1.1", headers: {}, body: "" }
+        var res: HttpResponse = HttpResponse { statusCode: code, statusText: HttpStatus.text(code), version: "HTTP/1.1", headers: {}, body: "" }
         return res
 
     # ==========================================================================

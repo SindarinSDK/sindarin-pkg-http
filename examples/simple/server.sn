@@ -1,0 +1,136 @@
+# ==============================================================================
+# examples/simple/server.sn - Simple HTTP Server (No JSON)
+# ==============================================================================
+# A minimal HTTP server that exercises the network/HTTP infrastructure
+# without using any JSON. Useful for isolating memory leaks.
+#
+# Run: make examples-simple-server
+#
+# Endpoints:
+#   GET  /ping       - Returns "pong"
+#   GET  /counter    - Increments and returns a counter
+#   POST /echo       - Echoes back the request body
+#   GET  /stats      - Returns request statistics (plain text)
+#   GET  /data/{n}   - Returns n bytes of data (for testing larger responses)
+# ==============================================================================
+
+import "../../src/server"
+
+# Request counters (prefixed to avoid conflict with server module)
+var simpleTotal: int = 0
+var simplePingCount: int = 0
+var simpleCounterValue: int = 0
+var simpleEchoCount: int = 0
+var simpleDataCount: int = 0
+
+# Log a request and response
+fn log(req: HttpRequest, res: HttpResponse): void =>
+    print($"[{req.method}] {req.path} -> {res.statusCode}\n")
+
+# GET /ping - Simple health check
+fn handlePing(req: HttpRequest): HttpResponse =>
+    simplePingCount = simplePingCount + 1
+    simpleTotal = simpleTotal + 1
+    return HttpResponse.ok().text("pong")
+
+# GET /counter - Increment and return counter
+fn handleCounter(req: HttpRequest): HttpResponse =>
+    simpleCounterValue = simpleCounterValue + 1
+    simpleTotal = simpleTotal + 1
+    return HttpResponse.ok().text($"{simpleCounterValue}")
+
+# POST /echo - Echo back the request body
+fn handleEcho(req: HttpRequest): HttpResponse =>
+    simpleEchoCount = simpleEchoCount + 1
+    simpleTotal = simpleTotal + 1
+    var body: str = req.body
+    return HttpResponse.ok().text(body)
+
+# GET /stats - Return request statistics
+fn handleStats(req: HttpRequest): HttpResponse =>
+    simpleTotal = simpleTotal + 1
+    var stats: str = $"total={simpleTotal}\nping={simplePingCount}\ncounter={simpleCounterValue}\necho={simpleEchoCount}\ndata={simpleDataCount}"
+    return HttpResponse.ok().text(stats)
+
+# GET /data/{n} - Return n bytes of data
+fn handleData(req: HttpRequest): HttpResponse =>
+    simpleDataCount = simpleDataCount + 1
+    simpleTotal = simpleTotal + 1
+
+    # Extract size from path like "/data/1024"
+    var parts: str[] = req.path.split("/")
+    var size: int = 100
+    if parts.length >= 3 =>
+        size = parts[2].toInt()
+        if size <= 0 =>
+            size = 100
+        if size > 1000000 =>
+            size = 1000000
+
+    # Generate data of requested size
+    var data: str = ""
+    var chunk: str = "ABCDEFGHIJ"  # 10 bytes
+    var remaining: int = size
+    while remaining >= 10 =>
+        data = $"{data}{chunk}"
+        remaining = remaining - 10
+
+    # Add remaining bytes
+    while remaining > 0 =>
+        data = $"{data}X"
+        remaining = remaining - 1
+
+    return HttpResponse.ok().text(data)
+
+# Route requests
+fn routePing(req: HttpRequest): HttpResponse =>
+    var res: HttpResponse = handlePing(req)
+    log(req, res)
+    return res
+
+fn routeCounter(req: HttpRequest): HttpResponse =>
+    var res: HttpResponse = handleCounter(req)
+    log(req, res)
+    return res
+
+fn routeEcho(req: HttpRequest): HttpResponse =>
+    var res: HttpResponse
+    if req.isPost() =>
+        res = handleEcho(req)
+    else =>
+        res = HttpResponse.new(405).text("Method not allowed")
+    log(req, res)
+    return res
+
+fn routeStats(req: HttpRequest): HttpResponse =>
+    var res: HttpResponse = handleStats(req)
+    log(req, res)
+    return res
+
+fn routeData(req: HttpRequest): HttpResponse =>
+    var res: HttpResponse = handleData(req)
+    log(req, res)
+    return res
+
+fn main(): void =>
+    print("Simple HTTP Server (No JSON)\n")
+    print("============================\n\n")
+
+    # Create router
+    var router: Router = Router.new()
+    router.get("/ping", routePing)
+    router.get("/counter", routeCounter)
+    router.post("/echo", routeEcho)
+    router.get("/stats", routeStats)
+    router.get("/data/*", routeData)
+
+    # Create and start server
+    var server: HttpServer = HttpServer.new(router)
+    print("Server running at http://localhost:8082\n")
+    print("Endpoints:\n")
+    print("  GET  /ping       - Returns 'pong'\n")
+    print("  GET  /counter    - Increments and returns counter\n")
+    print("  POST /echo       - Echoes back request body\n")
+    print("  GET  /stats      - Returns request statistics\n")
+    print("  GET  /data/{n}   - Returns n bytes of data\n\n")
+    server.listen(8082)

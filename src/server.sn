@@ -36,10 +36,6 @@ sync var totalRequests: int = 0
 sync var activeConnections: int = 0
 sync var totalErrors: int = 0
 
-fn getStats(): ServerStats =>
-    var stats: ServerStats = ServerStats { totalRequests: totalRequests, activeConnections: activeConnections, totalErrors: totalErrors }
-    return stats
-
 # ==============================================================================
 # HttpServer Structure
 # ==============================================================================
@@ -64,6 +60,27 @@ struct HttpServer =>
         var server: HttpServer = HttpServer.new(router)
         server.port = port
         return server
+
+    # ==========================================================================
+    # Static Utility Methods
+    # ==========================================================================
+
+    # Get server statistics
+    static fn stats(): ServerStats =>
+        var stats: ServerStats = ServerStats { totalRequests: totalRequests, activeConnections: activeConnections, totalErrors: totalErrors }
+        return stats
+
+    # Quick start: serve all requests with a single handler
+    static fn serve(port: int, handler: fn(HttpRequest): HttpResponse): void =>
+        var router: Router = Router.new()
+        router.all("/**", handler)
+        var server: HttpServer = HttpServer.new(router)
+        server.listen(port)
+
+    # Quick start: serve with a router
+    static fn serveRouter(port: int, router: Router): void =>
+        var server: HttpServer = HttpServer.new(router)
+        server.listen(port)
 
     # ==========================================================================
     # Configuration Methods
@@ -188,16 +205,3 @@ fn parseContentLength(data: str): int =>
             return valueStr.toInt()
     return 0
 
-# ==============================================================================
-# Quick Start Helper
-# ==============================================================================
-
-fn serve(port: int, handler: fn(HttpRequest): HttpResponse): void =>
-    var router: Router = Router.new()
-    router.all("/**", handler)
-    var server: HttpServer = HttpServer.new(router)
-    server.listen(port)
-
-fn serveRouter(port: int, router: Router): void =>
-    var server: HttpServer = HttpServer.new(router)
-    server.listen(port)

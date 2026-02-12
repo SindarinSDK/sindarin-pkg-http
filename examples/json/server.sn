@@ -17,9 +17,11 @@ import "../../src/server"
 # In-memory storage for items
 var items: Json
 var nextId: int = 1
+var requestCount: int = 0
 
 # Log a request and response
 fn log(req: HttpRequest, res: HttpResponse): void =>
+    requestCount = requestCount + 1
     print($"[{req.method}] {req.path} -> {res.statusCode}\n")
 
 # Extract ID from path like "/items/123"

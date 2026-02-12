@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Phony targets
 #------------------------------------------------------------------------------
-.PHONY: all test clean help examples-html examples-json-server examples-json-client
+.PHONY: all test clean help examples
 
 # Disable implicit rules for .sn.c files (these are compiled by the Sindarin compiler)
 %.sn: %.sn.c
@@ -85,38 +85,33 @@ help:
 	@echo "Sindarin HTTP Package"
 	@echo ""
 	@echo "Targets:"
-	@echo "  make test                 Run tests"
-	@echo "  make examples-html        Run HTML static file server example"
-	@echo "  make examples-json-server Run JSON REST API server"
-	@echo "  make examples-json-client Run JSON REST API client (requires server)"
-	@echo "  make clean                Remove build artifacts"
-	@echo "  make help                 Show this help"
+	@echo "  make test       Run tests"
+	@echo "  make examples   Build all examples"
+	@echo "  make clean      Remove build artifacts"
+	@echo "  make help       Show this help"
 	@echo ""
 	@echo "Dependencies are managed via sn.yaml package references."
 	@echo ""
 	@echo "Platform: $(PLATFORM)"
 
 #------------------------------------------------------------------------------
-# examples-html - Run the HTML static file server example
+# examples - Build all examples
 #------------------------------------------------------------------------------
 EXAMPLES_DIR := examples
 HTML_SERVER_SN := $(EXAMPLES_DIR)/html/server.sn
 HTML_SERVER_BIN := $(BIN_DIR)/html_server$(EXE_EXT)
-
-$(HTML_SERVER_BIN): $(HTML_SERVER_SN) | $(BIN_DIR)
-	@echo "Compiling html/server.sn..."
-	@$(SN) $(HTML_SERVER_SN) -o $(HTML_SERVER_BIN) -l 1
-
-examples-html: $(HTML_SERVER_BIN)
-	@$(HTML_SERVER_BIN)
-
-#------------------------------------------------------------------------------
-# examples-json - Run the JSON REST API example
-#------------------------------------------------------------------------------
 JSON_SERVER_SN := $(EXAMPLES_DIR)/json/server.sn
 JSON_SERVER_BIN := $(BIN_DIR)/json_server$(EXE_EXT)
 JSON_CLIENT_SN := $(EXAMPLES_DIR)/json/client.sn
 JSON_CLIENT_BIN := $(BIN_DIR)/json_client$(EXE_EXT)
+SIMPLE_SERVER_SN := $(EXAMPLES_DIR)/simple/server.sn
+SIMPLE_SERVER_BIN := $(BIN_DIR)/simple_server$(EXE_EXT)
+SIMPLE_CLIENT_SN := $(EXAMPLES_DIR)/simple/client.sn
+SIMPLE_CLIENT_BIN := $(BIN_DIR)/simple_client$(EXE_EXT)
+
+$(HTML_SERVER_BIN): $(HTML_SERVER_SN) | $(BIN_DIR)
+	@echo "Compiling html/server.sn..."
+	@$(SN) $(HTML_SERVER_SN) -o $(HTML_SERVER_BIN) -l 1
 
 $(JSON_SERVER_BIN): $(JSON_SERVER_SN) | $(BIN_DIR)
 	@echo "Compiling json/server.sn..."
@@ -126,8 +121,13 @@ $(JSON_CLIENT_BIN): $(JSON_CLIENT_SN) | $(BIN_DIR)
 	@echo "Compiling json/client.sn..."
 	@$(SN) $(JSON_CLIENT_SN) -o $(JSON_CLIENT_BIN) -l 1
 
-examples-json-server: $(JSON_SERVER_BIN)
-	@$(JSON_SERVER_BIN)
+$(SIMPLE_SERVER_BIN): $(SIMPLE_SERVER_SN) | $(BIN_DIR)
+	@echo "Compiling simple/server.sn..."
+	@$(SN) $(SIMPLE_SERVER_SN) -o $(SIMPLE_SERVER_BIN) -l 1
 
-examples-json-client: $(JSON_CLIENT_BIN)
-	@$(JSON_CLIENT_BIN)
+$(SIMPLE_CLIENT_BIN): $(SIMPLE_CLIENT_SN) | $(BIN_DIR)
+	@echo "Compiling simple/client.sn..."
+	@$(SN) $(SIMPLE_CLIENT_SN) -o $(SIMPLE_CLIENT_BIN) -l 1
+
+examples: $(HTML_SERVER_BIN) $(JSON_SERVER_BIN) $(JSON_CLIENT_BIN) $(SIMPLE_SERVER_BIN) $(SIMPLE_CLIENT_BIN)
+	@echo "All examples built."

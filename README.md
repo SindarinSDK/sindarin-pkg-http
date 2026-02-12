@@ -13,13 +13,12 @@ dependencies:
   branch: main
 ```
 
-Then run `sn pkg install` to fetch the package.
+Then run `sn --install` to fetch the package.
 
 ## Quick Start
 
 ```sindarin
 import "http/server"
-import "http/router"
 
 fn homeHandler(req: HttpRequest): HttpResponse =>
     return HttpResponse.ok().html("<h1>Hello World!</h1>")
@@ -45,7 +44,7 @@ fn handler(req: HttpRequest): HttpResponse =>
     return HttpResponse.ok().text($"Hello! You requested: {req.path}")
 
 fn main(): void =>
-    serve(8080, handler)
+    HttpServer.serve(8080, handler)
 ```
 
 ## Documentation
@@ -62,19 +61,19 @@ fn main(): void =>
 
 ### Status
 
-Status codes and helper functions for HTTP responses.
+Status codes and helper methods for HTTP responses.
 
 ```sindarin
 import "http/status"
 
 var code: int = STATUS_OK           // 200
 var code: int = STATUS_NOT_FOUND    // 404
-var text: str = statusText(200)     // "OK"
+var text: str = HttpStatus.text(200)     // "OK"
 
-isSuccess(200)      // true
-isClientError(404)  // true
-isServerError(500)  // true
-isError(400)        // true (4xx or 5xx)
+HttpStatus.isSuccess(200)      // true
+HttpStatus.isClientError(404)  // true
+HttpStatus.isServerError(500)  // true
+HttpStatus.isError(400)        // true (4xx or 5xx)
 ```
 
 ### Request
@@ -98,6 +97,14 @@ req.isGet()
 req.isPost()
 ```
 
+#### JSON Body Parsing
+
+```sindarin
+if req.isJson() =>
+    var data: Json = req.json()
+    var name: str = data.get("name").asString()
+```
+
 ### Response
 
 Build HTTP responses with a fluent API.
@@ -112,6 +119,16 @@ res.json("{\"key\": \"value\"}")     // application/json
 
 res.setHeader("X-Custom", "value")
 var output: str = res.toString()
+```
+
+#### JSON Responses
+
+```sindarin
+var data: Json = Json.object()
+data.set("message", Json.ofString("Hello"))
+
+var res: HttpResponse = HttpResponse.ok().jsonData(data)
+var pretty: HttpResponse = HttpResponse.ok().jsonPretty(data)
 ```
 
 ### Router
@@ -145,24 +162,37 @@ server.setPort(8080)
 server.setMaxRequestSize(1048576)  // 1MB
 server.listen(8080)
 
-var stats: ServerStats = getStats()
+var stats: ServerStats = HttpServer.stats()
 stats.totalRequests
 stats.activeConnections
 ```
 
-## Running Tests
+## Development
 
-To run the test suite:
+### Running Tests
 
 ```bash
 make test
 ```
 
-This will compile and run all tests with parallel execution. Use `make help` to see all available targets.
+### Building Examples
+
+```bash
+make examples
+```
+
+### Available Targets
+
+```bash
+make test       # Run tests
+make examples   # Build all examples
+make clean      # Remove build artifacts
+make help       # Show all targets
+```
 
 ## Dependencies
 
-This package depends on [sindarin-pkg-sdk](https://github.com/SindarinSDK/sindarin-pkg-sdk) for TCP networking. Dependencies are automatically managed via the `sn.yaml` package manifest.
+This package depends on [sindarin-pkg-sdk](https://github.com/SindarinSDK/sindarin-pkg-sdk) for TCP networking and JSON support. Dependencies are automatically managed via the `sn.yaml` package manifest.
 
 ## License
 

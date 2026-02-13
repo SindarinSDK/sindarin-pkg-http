@@ -4,7 +4,6 @@ bin/
 
 # Benchmark artifacts
 benchmarks/results/
-benchmarks/BENCHMARKS.md
 benchmarks/c/server
 benchmarks/rust/target/
 benchmarks/rust/Cargo.lock

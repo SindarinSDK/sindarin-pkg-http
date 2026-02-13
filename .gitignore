@@ -1,2 +1,20 @@
 .sn/
 *.exe
+bin/
+
+# Benchmark artifacts
+benchmarks/results/
+benchmarks/BENCHMARKS.md
+benchmarks/c/server
+benchmarks/rust/target/
+benchmarks/rust/Cargo.lock
+benchmarks/go/server
+benchmarks/java/out/
+benchmarks/csharp/out/
+benchmarks/csharp/bin/
+benchmarks/csharp/obj/
+benchmarks/nodejs/node_modules/
+
+# Python
+__pycache__/
+*.pyc

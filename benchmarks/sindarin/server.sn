@@ -1,0 +1,151 @@
+# ==============================================================================
+# examples/json/server.sn - JSON REST API Server
+# ==============================================================================
+# A simple REST API that stores JSON objects in memory.
+# Run: make examples-json-server
+#
+# Endpoints:
+#   GET    /items      - List all items
+#   POST   /items      - Create a new item
+#   GET    /items/{id} - Get item by ID
+#   PUT    /items/{id} - Update item by ID
+#   DELETE /items/{id} - Delete item by ID
+# ==============================================================================
+
+import "../../src/server"
+
+# In-memory storage for items
+var items: Json
+var nextId: int = 1
+var requestCount: int = 0
+
+# Log a request and response
+fn log(req: HttpRequest, res: HttpResponse): void =>
+    requestCount = requestCount + 1
+    print($"[{req.method}] {req.path} -> {res.statusCode}\n")
+
+# Extract ID from path like "/items/123"
+fn extractId(path: str): int =>
+    var parts: str[] = path.split("/")
+    if parts.length >= 3 =>
+        return parts[2].toInt()
+    return -1
+
+# Find item index by ID
+fn findItemIndex(id: int): int =>
+    var i: int = 0
+    while i < items.length() =>
+        var item: Json = items.getAt(i)
+        if item.get("id").asInt() == id =>
+            return i
+        i = i + 1
+    return -1
+
+# GET /items - List all items
+fn listItems(req: HttpRequest): HttpResponse =>
+    return HttpResponse.ok().jsonPretty(items)
+
+# POST /items - Create a new item
+fn createItem(req: HttpRequest): HttpResponse =>
+    if !req.isJson() =>
+        return HttpResponse.badRequest().json("{\"error\": \"Content-Type must be application/json\"}")
+
+    var body: Json = req.json()
+    body.set("id", Json.ofInt(nextId))
+    nextId = nextId + 1
+
+    items.append(body)
+
+    return HttpResponse.created().jsonPretty(body)
+
+# GET /items/{id} - Get item by ID
+fn getItem(req: HttpRequest): HttpResponse =>
+    var id: int = extractId(req.path)
+    var index: int = findItemIndex(id)
+
+    if index < 0 =>
+        return HttpResponse.notFound().json("{\"error\": \"Item not found\"}")
+
+    var item: Json = items.getAt(index)
+    return HttpResponse.ok().jsonPretty(item)
+
+# PUT /items/{id} - Update item by ID
+fn updateItem(req: HttpRequest): HttpResponse =>
+    if !req.isJson() =>
+        return HttpResponse.badRequest().json("{\"error\": \"Content-Type must be application/json\"}")
+
+    var id: int = extractId(req.path)
+    var index: int = findItemIndex(id)
+
+    if index < 0 =>
+        return HttpResponse.notFound().json("{\"error\": \"Item not found\"}")
+
+    var body: Json = req.json()
+    body.set("id", Json.ofInt(id))
+
+    # Remove old item and insert updated one
+    items.removeAt(index)
+    items.insert(index, body)
+
+    return HttpResponse.ok().jsonPretty(body)
+
+# DELETE /items/{id} - Delete item by ID
+fn deleteItem(req: HttpRequest): HttpResponse =>
+    var id: int = extractId(req.path)
+    var index: int = findItemIndex(id)
+
+    if index < 0 =>
+        return HttpResponse.notFound().json("{\"error\": \"Item not found\"}")
+
+    items.removeAt(index)
+
+    return HttpResponse.ok().json("{\"deleted\": true}")
+
+# Route handler for /items (collection)
+fn handleItems(req: HttpRequest): HttpResponse =>
+    var res: HttpResponse
+    if req.isGet() =>
+        res = listItems(req)
+    else if req.isPost() =>
+        res = createItem(req)
+    else =>
+        res = HttpResponse.new(405).text("Method not allowed")
+    log(req, res)
+    return res
+
+# Route handler for /items/{id} (single item)
+fn handleItem(req: HttpRequest): HttpResponse =>
+    var res: HttpResponse
+    if req.isGet() =>
+        res = getItem(req)
+    else if req.isPut() =>
+        res = updateItem(req)
+    else if req.isDelete() =>
+        res = deleteItem(req)
+    else =>
+        res = HttpResponse.new(405).text("Method not allowed")
+    log(req, res)
+    return res
+
+fn main(): void =>
+    print("JSON REST API Server\n")
+    print("====================\n\n")
+
+    # Initialize items storage
+    items = Json.array()
+
+    # Create router
+    var router: Router = Router.new()
+    router.all("/items", handleItems)
+    router.all("/items/*", handleItem)
+
+    # Create and start server
+    var server: HttpServer = HttpServer.new(router)
+    print("API running at http://localhost:8081\n")
+    print("Endpoints:\n")
+    print("  GET    /items      - List all items\n")
+    print("  POST   /items      - Create item\n")
+    print("  GET    /items/{id} - Get item\n")
+    print("  PUT    /items/{id} - Update item\n")
+    print("  DELETE /items/{id} - Delete item\n\n")
+    server.listen(8081)

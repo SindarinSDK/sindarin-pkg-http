@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Phony targets
 #------------------------------------------------------------------------------
-.PHONY: all test clean help examples
+.PHONY: all test clean help examples benchmark benchmark-build benchmark-clean benchmark-prereqs
 
 # Disable implicit rules for .sn.c files (these are compiled by the Sindarin compiler)
 %.sn: %.sn.c
@@ -84,10 +84,13 @@ help:
 	@echo "Sindarin HTTP Package"
 	@echo ""
 	@echo "Targets:"
-	@echo "  make test       Run tests"
-	@echo "  make examples   Build all examples"
-	@echo "  make clean      Remove build artifacts"
-	@echo "  make help       Show this help"
+	@echo "  make test            Run tests"
+	@echo "  make examples        Build all examples"
+	@echo "  make benchmark       Run HTTP server benchmarks"
+	@echo "  make benchmark-build Build benchmark implementations only"
+	@echo "  make benchmark-clean Clean benchmark artifacts"
+	@echo "  make clean           Remove build artifacts"
+	@echo "  make help            Show this help"
 	@echo ""
 	@echo "Dependencies are managed via sn.yaml package references."
 	@echo ""
@@ -130,3 +133,70 @@ $(SIMPLE_CLIENT_BIN): $(SIMPLE_CLIENT_SN) | $(BIN_DIR)
 
 examples: $(HTML_SERVER_BIN) $(JSON_SERVER_BIN) $(JSON_CLIENT_BIN) $(SIMPLE_SERVER_BIN) $(SIMPLE_CLIENT_BIN)
 	@echo "All examples built."
+
+#------------------------------------------------------------------------------
+# benchmark - Run HTTP server benchmarks
+#------------------------------------------------------------------------------
+.PHONY: benchmark benchmark-build benchmark-clean benchmark-prereqs
+
+BENCHMARK_DIR := benchmarks
+BENCHMARK_SCRIPT := $(BENCHMARK_DIR)/benchmark.sh
+BENCHMARK_SINDARIN_SN := $(BENCHMARK_DIR)/sindarin/server.sn
+BENCHMARK_SINDARIN_BIN := $(BIN_DIR)/benchmark_sindarin$(EXE_EXT)
+
+# Check prerequisites
+benchmark-prereqs:
+	@echo "Checking benchmark prerequisites..."
+	@which wrk > /dev/null 2>&1 || (echo "ERROR: wrk not found. Install with: sudo apt install wrk" && exit 1)
+	@echo "Prerequisites OK"
+
+# Build Sindarin benchmark server
+$(BENCHMARK_SINDARIN_BIN): $(BENCHMARK_SINDARIN_SN) $(SDK_SOURCES) | $(BIN_DIR)
+	@echo "Compiling benchmark sindarin server..."
+	@$(SN) $(BENCHMARK_SINDARIN_SN) -o $(BENCHMARK_SINDARIN_BIN) -l 1
+
+# Build all benchmark implementations
+benchmark-build: benchmark-prereqs $(BENCHMARK_SINDARIN_BIN)
+	@echo "Building benchmark implementations..."
+	@if [ -d "$(BENCHMARK_DIR)/c" ] && command -v gcc > /dev/null 2>&1; then \
+		echo "Building C server..."; \
+		(cd $(BENCHMARK_DIR)/c && make); \
+	fi
+	@if [ -d "$(BENCHMARK_DIR)/rust" ] && command -v cargo > /dev/null 2>&1; then \
+		echo "Building Rust server..."; \
+		(cd $(BENCHMARK_DIR)/rust && cargo build --release 2>&1 | tail -3); \
+	fi
+	@if [ -d "$(BENCHMARK_DIR)/go" ] && command -v go > /dev/null 2>&1; then \
+		echo "Building Go server..."; \
+		(cd $(BENCHMARK_DIR)/go && go build -o server .); \
+	fi
+	@if [ -d "$(BENCHMARK_DIR)/java" ] && command -v javac > /dev/null 2>&1; then \
+		echo "Building Java server..."; \
+		mkdir -p $(BENCHMARK_DIR)/java/out; \
+		javac -d $(BENCHMARK_DIR)/java/out $(BENCHMARK_DIR)/java/src/main/java/benchmark/Server.java; \
+	fi
+	@if [ -d "$(BENCHMARK_DIR)/csharp" ] && command -v dotnet > /dev/null 2>&1; then \
+		echo "Building C# server..."; \
+		(cd $(BENCHMARK_DIR)/csharp && dotnet build -c Release -o out 2>&1 | tail -3); \
+	fi
+	@echo "Benchmark build complete."
+
+# Run the full benchmark suite
+benchmark: benchmark-build
+	@echo "Running benchmark suite..."
+	@chmod +x $(BENCHMARK_SCRIPT)
+	@$(BENCHMARK_SCRIPT)
+	@echo ""
+	@echo "Benchmark complete. Results in $(BENCHMARK_DIR)/BENCHMARKS.md"
+
+# Clean benchmark artifacts
+benchmark-clean:
+	@echo "Cleaning benchmark artifacts..."
+	@rm -f $(BIN_DIR)/benchmark_*
+	@rm -rf $(BENCHMARK_DIR)/results/*
+	@if [ -d "$(BENCHMARK_DIR)/c" ]; then (cd $(BENCHMARK_DIR)/c && make clean 2>/dev/null || true); fi
+	@if [ -d "$(BENCHMARK_DIR)/rust" ]; then (cd $(BENCHMARK_DIR)/rust && cargo clean 2>/dev/null || true); fi
+	@if [ -d "$(BENCHMARK_DIR)/go" ]; then rm -f $(BENCHMARK_DIR)/go/server; fi
+	@if [ -d "$(BENCHMARK_DIR)/java" ]; then rm -rf $(BENCHMARK_DIR)/java/out; fi
+	@if [ -d "$(BENCHMARK_DIR)/csharp" ]; then rm -rf $(BENCHMARK_DIR)/csharp/out $(BENCHMARK_DIR)/csharp/bin $(BENCHMARK_DIR)/csharp/obj; fi
+	@echo "Benchmark clean complete."

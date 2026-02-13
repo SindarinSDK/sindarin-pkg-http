@@ -17,12 +17,9 @@ import "../../src/server"
 # In-memory storage for items
 var items: Json
 var nextId: int = 1
-var requestCount: int = 0
 
-# Log a request and response
-fn log(req: HttpRequest, res: HttpResponse): void =>
-    requestCount = requestCount + 1
-    print($"[{req.method}] {req.path} -> {res.statusCode}\n")
+# Max items to store (prevent memory exhaustion during benchmarks)
+var maxItems: int = 10000
 
 # Extract ID from path like "/items/123"
 fn extractId(path: str): int =>
@@ -54,7 +51,9 @@ fn createItem(req: HttpRequest): HttpResponse =>
     body.set("id", Json.ofInt(nextId))
     nextId = nextId + 1
 
-    items.append(body)
+    # Limit items to prevent memory exhaustion during benchmarks
+    if items.length() < maxItems =>
+        items.append(body)
 
     return HttpResponse.created().jsonPretty(body)
 
@@ -103,27 +102,20 @@ fn deleteItem(req: HttpRequest): HttpResponse =>
 
 # Route handler for /items (collection)
 fn handleItems(req: HttpRequest): HttpResponse =>
-    var res: HttpResponse = match req.method =>
+    return match req.method =>
         "GET" => listItems(req)
         "POST" => createItem(req)
         else => HttpResponse.new(405).text("Method not allowed")
-    log(req, res)
-    return res
 
 # Route handler for /items/{id} (single item)
 fn handleItem(req: HttpRequest): HttpResponse =>
-    var res: HttpResponse = match req.method =>
+    return match req.method =>
         "GET" => getItem(req)
         "PUT" => updateItem(req)
         "DELETE" => deleteItem(req)
         else => HttpResponse.new(405).text("Method not allowed")
-    log(req, res)
-    return res
 
 fn main(): void =>
-    print("JSON REST API Server\n")
-    print("====================\n\n")
-
     # Initialize items storage
     items = Json.array()
 
@@ -134,11 +126,4 @@ fn main(): void =>
 
     # Create and start server
     var server: HttpServer = HttpServer.new(router)
-    print("API running at http://localhost:8081\n")
-    print("Endpoints:\n")
-    print("  GET    /items      - List all items\n")
-    print("  POST   /items      - Create item\n")
-    print("  GET    /items/{id} - Get item\n")
-    print("  PUT    /items/{id} - Update item\n")
-    print("  DELETE /items/{id} - Delete item\n\n")
     server.listen(8081)

@@ -94,11 +94,9 @@ fn routeCounter(req: HttpRequest): HttpResponse =>
     return res
 
 fn routeEcho(req: HttpRequest): HttpResponse =>
-    var res: HttpResponse
-    if req.isPost() =>
-        res = handleEcho(req)
-    else =>
-        res = HttpResponse.new(405).text("Method not allowed")
+    var res: HttpResponse = match req.method =>
+        "POST" => handleEcho(req)
+        else => HttpResponse.new(405).text("Method not allowed")
     log(req, res)
     return res
 

@@ -103,27 +103,20 @@ fn deleteItem(req: HttpRequest): HttpResponse =>
 
 # Route handler for /items (collection)
 fn handleItems(req: HttpRequest): HttpResponse =>
-    var res: HttpResponse
-    if req.isGet() =>
-        res = listItems(req)
-    else if req.isPost() =>
-        res = createItem(req)
-    else =>
-        res = HttpResponse.new(405).text("Method not allowed")
+    var res: HttpResponse = match req.method =>
+        "GET" => listItems(req)
+        "POST" => createItem(req)
+        else => HttpResponse.new(405).text("Method not allowed")
     log(req, res)
     return res
 
 # Route handler for /items/{id} (single item)
 fn handleItem(req: HttpRequest): HttpResponse =>
-    var res: HttpResponse
-    if req.isGet() =>
-        res = getItem(req)
-    else if req.isPut() =>
-        res = updateItem(req)
-    else if req.isDelete() =>
-        res = deleteItem(req)
-    else =>
-        res = HttpResponse.new(405).text("Method not allowed")
+    var res: HttpResponse = match req.method =>
+        "GET" => getItem(req)
+        "PUT" => updateItem(req)
+        "DELETE" => deleteItem(req)
+        else => HttpResponse.new(405).text("Method not allowed")
     log(req, res)
     return res
 

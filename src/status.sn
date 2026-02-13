@@ -81,53 +81,44 @@ struct HttpStatus =>
     # ==========================================================================
 
     static fn text(code: int): str =>
-        # 1xx
-        if code == 100 => return "Continue"
-        if code == 101 => return "Switching Protocols"
-
-        # 2xx
-        if code == 200 => return "OK"
-        if code == 201 => return "Created"
-        if code == 202 => return "Accepted"
-        if code == 204 => return "No Content"
-        if code == 205 => return "Reset Content"
-        if code == 206 => return "Partial Content"
-
-        # 3xx
-        if code == 301 => return "Moved Permanently"
-        if code == 302 => return "Found"
-        if code == 303 => return "See Other"
-        if code == 304 => return "Not Modified"
-        if code == 307 => return "Temporary Redirect"
-        if code == 308 => return "Permanent Redirect"
-
-        # 4xx
-        if code == 400 => return "Bad Request"
-        if code == 401 => return "Unauthorized"
-        if code == 403 => return "Forbidden"
-        if code == 404 => return "Not Found"
-        if code == 405 => return "Method Not Allowed"
-        if code == 406 => return "Not Acceptable"
-        if code == 408 => return "Request Timeout"
-        if code == 409 => return "Conflict"
-        if code == 410 => return "Gone"
-        if code == 411 => return "Length Required"
-        if code == 413 => return "Payload Too Large"
-        if code == 414 => return "URI Too Long"
-        if code == 415 => return "Unsupported Media Type"
-        if code == 422 => return "Unprocessable Entity"
-        if code == 429 => return "Too Many Requests"
-
-        # 5xx
-        if code == 500 => return "Internal Server Error"
-        if code == 501 => return "Not Implemented"
-        if code == 502 => return "Bad Gateway"
-        if code == 503 => return "Service Unavailable"
-        if code == 504 => return "Gateway Timeout"
-        if code == 505 => return "HTTP Version Not Supported"
-
-        # Unknown
-        return "Unknown"
+        var result: str = match code =>
+            100 => "Continue"
+            101 => "Switching Protocols"
+            200 => "OK"
+            201 => "Created"
+            202 => "Accepted"
+            204 => "No Content"
+            205 => "Reset Content"
+            206 => "Partial Content"
+            301 => "Moved Permanently"
+            302 => "Found"
+            303 => "See Other"
+            304 => "Not Modified"
+            307 => "Temporary Redirect"
+            308 => "Permanent Redirect"
+            400 => "Bad Request"
+            401 => "Unauthorized"
+            403 => "Forbidden"
+            404 => "Not Found"
+            405 => "Method Not Allowed"
+            406 => "Not Acceptable"
+            408 => "Request Timeout"
+            409 => "Conflict"
+            410 => "Gone"
+            411 => "Length Required"
+            413 => "Payload Too Large"
+            414 => "URI Too Long"
+            415 => "Unsupported Media Type"
+            422 => "Unprocessable Entity"
+            429 => "Too Many Requests"
+            500 => "Internal Server Error"
+            501 => "Not Implemented"
+            502 => "Bad Gateway"
+            503 => "Service Unavailable"
+            504 => "Gateway Timeout"
+            505 => "HTTP Version Not Supported"
+            else => "Unknown"
+        return result
 
     # ==========================================================================
     # Category Helpers

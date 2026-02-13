@@ -13,6 +13,7 @@ benchmarks/csharp/out/
 benchmarks/csharp/bin/
 benchmarks/csharp/obj/
 benchmarks/nodejs/node_modules/
+sindarin-pkg-http.sln
 
 # Python
 __pycache__/

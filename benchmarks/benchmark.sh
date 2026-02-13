@@ -159,49 +159,49 @@ build_nodejs() {
 
 run_sindarin() {
     /usr/bin/time -v -o "$RESULTS_DIR/sindarin_time.txt" \
-        "$PROJECT_DIR/bin/benchmark_sindarin" 2>&1 &
+        "$PROJECT_DIR/bin/benchmark_sindarin" > /dev/null 2>&1 &
     echo $!
 }
 
 run_c() {
     /usr/bin/time -v -o "$RESULTS_DIR/c_time.txt" \
-        "$SCRIPT_DIR/c/server" 2>&1 &
+        "$SCRIPT_DIR/c/server" > /dev/null 2>&1 &
     echo $!
 }
 
 run_rust() {
     /usr/bin/time -v -o "$RESULTS_DIR/rust_time.txt" \
-        "$SCRIPT_DIR/rust/target/release/benchmark-rust" 2>&1 &
+        "$SCRIPT_DIR/rust/target/release/benchmark-rust" > /dev/null 2>&1 &
     echo $!
 }
 
 run_go() {
     /usr/bin/time -v -o "$RESULTS_DIR/go_time.txt" \
-        "$SCRIPT_DIR/go/server" 2>&1 &
+        "$SCRIPT_DIR/go/server" > /dev/null 2>&1 &
     echo $!
 }
 
 run_java() {
     /usr/bin/time -v -o "$RESULTS_DIR/java_time.txt" \
-        java -cp "$SCRIPT_DIR/java/out" benchmark.Server 2>&1 &
+        java -cp "$SCRIPT_DIR/java/out" benchmark.Server > /dev/null 2>&1 &
     echo $!
 }
 
 run_csharp() {
     /usr/bin/time -v -o "$RESULTS_DIR/csharp_time.txt" \
-        "$SCRIPT_DIR/csharp/out/Server" 2>&1 &
+        "$SCRIPT_DIR/csharp/out/Server" > /dev/null 2>&1 &
     echo $!
 }
 
 run_python() {
     /usr/bin/time -v -o "$RESULTS_DIR/python_time.txt" \
-        python3 "$SCRIPT_DIR/python/server.py" 2>&1 &
+        python3 "$SCRIPT_DIR/python/server.py" > /dev/null 2>&1 &
     echo $!
 }
 
 run_nodejs() {
     /usr/bin/time -v -o "$RESULTS_DIR/nodejs_time.txt" \
-        node "$SCRIPT_DIR/nodejs/server.js" 2>&1 &
+        node "$SCRIPT_DIR/nodejs/server.js" > /dev/null 2>&1 &
     echo $!
 }
 

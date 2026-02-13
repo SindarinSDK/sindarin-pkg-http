@@ -44,17 +44,21 @@ wait_for_server() {
 
 stop_server() {
     local pid=$1
-    # Kill the time process and its children
+    # Kill the server (child of time), not time itself, so time can write its output
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-        pkill -P "$pid" 2>/dev/null || true
-        kill "$pid" 2>/dev/null || true
-        sleep 1
-        pkill -9 -P "$pid" 2>/dev/null || true
-        kill -9 "$pid" 2>/dev/null || true
+        # Kill children of the time process (the actual server)
+        pkill -TERM -P "$pid" 2>/dev/null || true
+        # Wait for time to observe termination and write output
+        sleep 2
+        # Force kill if still running
+        if kill -0 "$pid" 2>/dev/null; then
+            pkill -9 -P "$pid" 2>/dev/null || true
+            kill -9 "$pid" 2>/dev/null || true
+        fi
     fi
     # Also kill any process on the port
     fuser -k ${PORT}/tcp 2>/dev/null || true
-    sleep 2
+    sleep 1
 }
 
 check_prereqs() {

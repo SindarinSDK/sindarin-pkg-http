@@ -33,7 +33,11 @@ fn findItemIndex(id: int): int =>
     var i: int = 0
     while i < items.length() =>
         var item: Json = items.getAt(i)
-        if item.get("id").asInt() == id =>
+        var itemId: Json = item.get("id")
+        var found: bool = itemId.asInt() == id
+        itemId.dispose()
+        item.dispose()
+        if found =>
             return i
         i = i + 1
     return -1
@@ -48,14 +52,18 @@ fn createItem(req: HttpRequest): HttpResponse =>
         return HttpResponse.badRequest().json("{\"error\": \"Content-Type must be application/json\"}")
 
     var body: Json = req.json()
-    body.set("id", Json.ofInt(nextId))
+    var idVal: Json = Json.ofInt(nextId)
+    body.set("id", idVal)
+    idVal.dispose()
     nextId = nextId + 1
 
     # Limit items to prevent memory exhaustion during benchmarks
     if items.length() < maxItems =>
         items.append(body)
 
-    return HttpResponse.created().jsonPretty(body)
+    var resp: HttpResponse = HttpResponse.created().jsonPretty(body)
+    body.dispose()
+    return resp
 
 # GET /items/{id} - Get item by ID
 fn getItem(req: HttpRequest): HttpResponse =>
@@ -66,7 +74,9 @@ fn getItem(req: HttpRequest): HttpResponse =>
         return HttpResponse.notFound().json("{\"error\": \"Item not found\"}")
 
     var item: Json = items.getAt(index)
-    return HttpResponse.ok().jsonPretty(item)
+    var resp: HttpResponse = HttpResponse.ok().jsonPretty(item)
+    item.dispose()
+    return resp
 
 # PUT /items/{id} - Update item by ID
 fn updateItem(req: HttpRequest): HttpResponse =>
@@ -80,13 +90,17 @@ fn updateItem(req: HttpRequest): HttpResponse =>
         return HttpResponse.notFound().json("{\"error\": \"Item not found\"}")
 
     var body: Json = req.json()
-    body.set("id", Json.ofInt(id))
+    var idVal: Json = Json.ofInt(id)
+    body.set("id", idVal)
+    idVal.dispose()
 
     # Remove old item and insert updated one
     items.removeAt(index)
     items.insert(index, body)
 
-    return HttpResponse.ok().jsonPretty(body)
+    var resp: HttpResponse = HttpResponse.ok().jsonPretty(body)
+    body.dispose()
+    return resp
 
 # DELETE /items/{id} - Delete item by ID
 fn deleteItem(req: HttpRequest): HttpResponse =>

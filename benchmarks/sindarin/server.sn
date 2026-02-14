@@ -16,6 +16,10 @@ import "../../src/server"
 
 # In-memory storage for items
 var items: Json
+
+# Synchronization lock for thread-safe access to items and nextId
+sync var itemsLock: int = 0
+
 var nextId: int = 1
 
 # Max items to store (prevent memory exhaustion during benchmarks)
@@ -28,8 +32,8 @@ fn extractId(path: str): int =>
         return parts[2].toInt()
     return -1
 
-# Find item index by ID
-fn findItemIndex(id: int): int =>
+# Find item index by ID (caller must hold lock)
+fn findItemIndexUnsafe(id: int): int =>
     var i: int = 0
     while i < items.length() =>
         var item: Json = items.getAt(i)
@@ -44,7 +48,10 @@ fn findItemIndex(id: int): int =>
 
 # GET /items - List all items
 fn listItems(req: HttpRequest): HttpResponse =>
-    return HttpResponse.ok().jsonPretty(items)
+    var resp: HttpResponse
+    lock(itemsLock) =>
+        resp = HttpResponse.ok().jsonPretty(items)
+    return resp
 
 # POST /items - Create a new item
 fn createItem(req: HttpRequest): HttpResponse =>
@@ -52,14 +59,16 @@ fn createItem(req: HttpRequest): HttpResponse =>
         return HttpResponse.badRequest().json("{\"error\": \"Content-Type must be application/json\"}")
 
     var body: Json = req.json()
-    var idVal: Json = Json.ofInt(nextId)
-    body.set("id", idVal)
-    idVal.dispose()
-    nextId = nextId + 1
 
-    # Limit items to prevent memory exhaustion during benchmarks
-    if items.length() < maxItems =>
-        items.append(body)
+    lock(itemsLock) =>
+        var idVal: Json = Json.ofInt(nextId)
+        body.set("id", idVal)
+        idVal.dispose()
+        nextId = nextId + 1
+
+        # Limit items to prevent memory exhaustion during benchmarks
+        if items.length() < maxItems =>
+            items.append(body)
 
     var resp: HttpResponse = HttpResponse.created().jsonPretty(body)
     body.dispose()
@@ -68,12 +77,17 @@ fn createItem(req: HttpRequest): HttpResponse =>
 # GET /items/{id} - Get item by ID
 fn getItem(req: HttpRequest): HttpResponse =>
     var id: int = extractId(req.path)
-    var index: int = findItemIndex(id)
+    var index: int = -1
+    var item: Json
+
+    lock(itemsLock) =>
+        index = findItemIndexUnsafe(id)
+        if index >= 0 =>
+            item = items.getAt(index)
 
     if index < 0 =>
         return HttpResponse.notFound().json("{\"error\": \"Item not found\"}")
 
-    var item: Json = items.getAt(index)
     var resp: HttpResponse = HttpResponse.ok().jsonPretty(item)
     item.dispose()
     return resp
@@ -84,19 +98,22 @@ fn updateItem(req: HttpRequest): HttpResponse =>
         return HttpResponse.badRequest().json("{\"error\": \"Content-Type must be application/json\"}")
 
     var id: int = extractId(req.path)
-    var index: int = findItemIndex(id)
+    var body: Json = req.json()
+    var index: int = -1
+
+    lock(itemsLock) =>
+        index = findItemIndexUnsafe(id)
+        if index >= 0 =>
+            var idVal: Json = Json.ofInt(id)
+            body.set("id", idVal)
+            idVal.dispose()
+
+            # Remove old item and insert updated one
+            items.removeAt(index)
+            items.insert(index, body)
 
     if index < 0 =>
         return HttpResponse.notFound().json("{\"error\": \"Item not found\"}")
-
-    var body: Json = req.json()
-    var idVal: Json = Json.ofInt(id)
-    body.set("id", idVal)
-    idVal.dispose()
-
-    # Remove old item and insert updated one
-    items.removeAt(index)
-    items.insert(index, body)
 
     var resp: HttpResponse = HttpResponse.ok().jsonPretty(body)
     body.dispose()
@@ -105,12 +122,15 @@ fn updateItem(req: HttpRequest): HttpResponse =>
 # DELETE /items/{id} - Delete item by ID
 fn deleteItem(req: HttpRequest): HttpResponse =>
     var id: int = extractId(req.path)
-    var index: int = findItemIndex(id)
+    var index: int = -1
+
+    lock(itemsLock) =>
+        index = findItemIndexUnsafe(id)
+        if index >= 0 =>
+            items.removeAt(index)
 
     if index < 0 =>
         return HttpResponse.notFound().json("{\"error\": \"Item not found\"}")
-
-    items.removeAt(index)
 
     return HttpResponse.ok().json("{\"deleted\": true}")
 

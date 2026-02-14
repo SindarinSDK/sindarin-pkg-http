@@ -39,8 +39,9 @@ fn findItemIndexUnsafe(id: int): int =>
         var item: Json = items.getAt(i)
         var itemId: Json = item.get("id")
         var found: bool = itemId.asInt() == id
-        itemId.dispose()
-        item.dispose()
+        # Removed dispose calls to test if they cause double-free
+        # itemId.dispose()
+        # item.dispose()
         if found =>
             return i
         i = i + 1
@@ -59,37 +60,37 @@ fn createItem(req: HttpRequest): HttpResponse =>
         return HttpResponse.badRequest().json("{\"error\": \"Content-Type must be application/json\"}")
 
     var body: Json = req.json()
+    var resp: HttpResponse
 
     lock(itemsLock) =>
         var idVal: Json = Json.ofInt(nextId)
         body.set("id", idVal)
-        idVal.dispose()
+        # idVal disposed when local arena is cleaned up
         nextId = nextId + 1
 
         # Limit items to prevent memory exhaustion during benchmarks
         if items.length() < maxItems =>
             items.append(body)
 
-    var resp: HttpResponse = HttpResponse.created().jsonPretty(body)
-    body.dispose()
+        resp = HttpResponse.created().jsonPretty(body)
+        # body disposed when local arena is cleaned up
+
     return resp
 
 # GET /items/{id} - Get item by ID
 fn getItem(req: HttpRequest): HttpResponse =>
     var id: int = extractId(req.path)
-    var index: int = -1
-    var item: Json
+    var resp: HttpResponse
 
     lock(itemsLock) =>
-        index = findItemIndexUnsafe(id)
-        if index >= 0 =>
-            item = items.getAt(index)
+        var index: int = findItemIndexUnsafe(id)
+        if index < 0 =>
+            resp = HttpResponse.notFound().json("{\"error\": \"Item not found\"}")
+        else =>
+            var item: Json = items.getAt(index)
+            resp = HttpResponse.ok().jsonPretty(item)
+            # item disposed when local arena is cleaned up
 
-    if index < 0 =>
-        return HttpResponse.notFound().json("{\"error\": \"Item not found\"}")
-
-    var resp: HttpResponse = HttpResponse.ok().jsonPretty(item)
-    item.dispose()
     return resp
 
 # PUT /items/{id} - Update item by ID
@@ -99,24 +100,23 @@ fn updateItem(req: HttpRequest): HttpResponse =>
 
     var id: int = extractId(req.path)
     var body: Json = req.json()
-    var index: int = -1
+    var resp: HttpResponse
 
     lock(itemsLock) =>
-        index = findItemIndexUnsafe(id)
-        if index >= 0 =>
+        var index: int = findItemIndexUnsafe(id)
+        if index < 0 =>
+            resp = HttpResponse.notFound().json("{\"error\": \"Item not found\"}")
+        else =>
             var idVal: Json = Json.ofInt(id)
             body.set("id", idVal)
-            idVal.dispose()
+            # idVal disposed when local arena is cleaned up
 
             # Remove old item and insert updated one
             items.removeAt(index)
             items.insert(index, body)
+            resp = HttpResponse.ok().jsonPretty(body)
+            # body disposed when local arena is cleaned up
 
-    if index < 0 =>
-        return HttpResponse.notFound().json("{\"error\": \"Item not found\"}")
-
-    var resp: HttpResponse = HttpResponse.ok().jsonPretty(body)
-    body.dispose()
     return resp
 
 # DELETE /items/{id} - Delete item by ID

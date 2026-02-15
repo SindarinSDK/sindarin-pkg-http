@@ -18,6 +18,7 @@
 # ==============================================================================
 
 import "../.sn/sindarin-pkg-sdk/src/net/tcp"
+import "../.sn/sindarin-pkg-sdk/src/core/gc"
 import "request"
 import "response"
 import "router"
@@ -146,6 +147,7 @@ struct HttpServer =>
         var responseBytes: byte[] = response.toBytes()
         client.write(responseBytes)
         client.close()
+        GC.collect()
         activeConnections--
 
     # Read HTTP request from client

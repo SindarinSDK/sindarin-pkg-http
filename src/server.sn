@@ -132,22 +132,39 @@ struct HttpServer =>
     # Client Handling
     # ==========================================================================
 
-    # Handle a single client connection
+    # Handle a client connection with HTTP/1.1 keep-alive support
     fn handleClient(client: TcpStream): void =>
-        var response: HttpResponse = HttpResponse.internalServerError()
-        response = response.text("Internal Server Error")
+        client.setTimeout(5000)
 
-        var requestData: str = self.readRequest(client)
+        var keepAlive: bool = true
+        while keepAlive =>
+            var requestData: str = self.readRequest(client)
 
-        if requestData.length > 0 =>
+            if requestData.length == 0 =>
+                break
+
             var request: HttpRequest = HttpRequest.parse(requestData)
             totalRequests++
-            response = self.router.handle(request)
+            var response: HttpResponse = self.router.handle(request)
 
-        var responseBytes: byte[] = response.toBytes()
-        client.write(responseBytes)
+            # Determine keep-alive from request
+            var connHeader: str = request.getHeader("Connection").toLower()
+            if connHeader == "close" =>
+                keepAlive = false
+            else if request.version == "HTTP/1.0" && connHeader != "keep-alive" =>
+                keepAlive = false
+
+            # Tell client whether we're keeping the connection open
+            if keepAlive =>
+                response.setHeader("Connection", "keep-alive")
+            else =>
+                response.setHeader("Connection", "close")
+
+            var responseBytes: byte[] = response.toBytes()
+            client.write(responseBytes)
+            GC.collect()
+
         client.close()
-        GC.collect()
         activeConnections--
 
     # Read HTTP request from client

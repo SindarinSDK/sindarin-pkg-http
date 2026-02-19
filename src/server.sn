@@ -162,9 +162,9 @@ struct HttpServer =>
 
             var responseBytes: byte[] = response.toBytes()
             client.write(responseBytes)
-            GC.collect()
 
         client.close()
+        GC.collect()
         activeConnections--
 
     # Read HTTP request from client

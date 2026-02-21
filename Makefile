@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Phony targets
 #------------------------------------------------------------------------------
-.PHONY: all test clean help examples benchmark benchmark-build benchmark-clean benchmark-prereqs
+.PHONY: all test clean help examples benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin
 
 # Disable implicit rules for .sn.c files (these are compiled by the Sindarin compiler)
 %.sn: %.sn.c
@@ -89,6 +89,7 @@ help:
 	@echo "  make benchmark       Run HTTP server benchmarks"
 	@echo "  make benchmark-build Build benchmark implementations only"
 	@echo "  make benchmark-clean Clean benchmark artifacts"
+	@echo "  make benchmark-sindarin  Run Sindarin-only benchmark (ASAN enabled)"
 	@echo "  make clean           Remove build artifacts"
 	@echo "  make help            Show this help"
 	@echo ""
@@ -137,12 +138,13 @@ examples: $(HTML_SERVER_BIN) $(JSON_SERVER_BIN) $(JSON_CLIENT_BIN) $(SIMPLE_SERV
 #------------------------------------------------------------------------------
 # benchmark - Run HTTP server benchmarks
 #------------------------------------------------------------------------------
-.PHONY: benchmark benchmark-build benchmark-clean benchmark-prereqs
+.PHONY: benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin
 
 BENCHMARK_DIR := benchmarks
 BENCHMARK_SCRIPT := $(BENCHMARK_DIR)/benchmark.sh
 BENCHMARK_SINDARIN_SN := $(BENCHMARK_DIR)/sindarin/server.sn
 BENCHMARK_SINDARIN_BIN := $(BIN_DIR)/benchmark_sindarin$(EXE_EXT)
+BENCHMARK_SINDARIN_ASAN_BIN := $(BIN_DIR)/benchmark_sindarin_asan$(EXE_EXT)
 
 # Check prerequisites
 benchmark-prereqs:
@@ -200,3 +202,94 @@ benchmark-clean:
 	@if [ -d "$(BENCHMARK_DIR)/java" ]; then rm -rf $(BENCHMARK_DIR)/java/out; fi
 	@if [ -d "$(BENCHMARK_DIR)/csharp" ]; then rm -rf $(BENCHMARK_DIR)/csharp/out $(BENCHMARK_DIR)/csharp/bin $(BENCHMARK_DIR)/csharp/obj; fi
 	@echo "Benchmark clean complete."
+
+#------------------------------------------------------------------------------
+# benchmark-sindarin - Sindarin-only benchmark with ASAN enabled
+#------------------------------------------------------------------------------
+benchmark-sindarin: benchmark-prereqs | $(BIN_DIR)
+	@echo "Compiling Sindarin benchmark server (ASAN enabled)..."
+	@$(SN) $(BENCHMARK_SINDARIN_SN) -o $(BENCHMARK_SINDARIN_ASAN_BIN) -g -l 1
+	@. $(BENCHMARK_DIR)/config.sh && \
+	TMPDIR=$$(mktemp -d) && \
+	echo "Starting Sindarin server (ASAN enabled)..." && \
+	/usr/bin/time -v -o "$$TMPDIR/time.txt" ./$(BENCHMARK_SINDARIN_ASAN_BIN) > "$$TMPDIR/server.log" 2>&1 & \
+	SERVER_PID=$$! && \
+	ATTEMPT=0 && \
+	while ! curl -s "http://localhost:$$BENCHMARK_PORT/items" > /dev/null 2>&1; do \
+		sleep 0.5; \
+		ATTEMPT=$$((ATTEMPT + 1)); \
+		if [ $$ATTEMPT -ge 60 ]; then \
+			echo "ERROR: Server failed to start within 30 seconds"; \
+			cat "$$TMPDIR/server.log" 2>/dev/null; \
+			kill $$SERVER_PID 2>/dev/null; \
+			rm -rf "$$TMPDIR"; \
+			exit 1; \
+		fi; \
+	done && \
+	echo "Server ready on port $$BENCHMARK_PORT" && \
+	echo "" && \
+	echo "Benchmarking GET /items ($$WRK_DURATION)..." && \
+	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
+		--latency "http://localhost:$$BENCHMARK_PORT/items" \
+		> "$$TMPDIR/get_items.txt" 2>&1 && \
+	echo "Benchmarking POST /items ($$WRK_DURATION)..." && \
+	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
+		--latency -s $(BENCHMARK_DIR)/wrk/post_item.lua \
+		"http://localhost:$$BENCHMARK_PORT/items" \
+		> "$$TMPDIR/post_items.txt" 2>&1 && \
+	echo "Benchmarking GET /items/1 ($$WRK_DURATION)..." && \
+	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
+		--latency "http://localhost:$$BENCHMARK_PORT/items/1" \
+		> "$$TMPDIR/get_item.txt" 2>&1; \
+	echo "Stopping server..."; \
+	pkill -TERM -P $$SERVER_PID 2>/dev/null || true; \
+	sleep 2; \
+	kill -0 $$SERVER_PID 2>/dev/null && { pkill -9 -P $$SERVER_PID 2>/dev/null; kill -9 $$SERVER_PID 2>/dev/null; } || true; \
+	fuser -k $$BENCHMARK_PORT/tcp 2>/dev/null || true; \
+	sleep 1; \
+	GET_RPS=$$(grep "Requests/sec" "$$TMPDIR/get_items.txt" 2>/dev/null | awk '{print $$2}'); \
+	POST_RPS=$$(grep "Requests/sec" "$$TMPDIR/post_items.txt" 2>/dev/null | awk '{print $$2}'); \
+	GETID_RPS=$$(grep "Requests/sec" "$$TMPDIR/get_item.txt" 2>/dev/null | awk '{print $$2}'); \
+	AVG_LAT=$$(grep "Latency" "$$TMPDIR/get_items.txt" 2>/dev/null | head -1 | awk '{print $$2}'); \
+	P99_LAT=$$(grep "99%" "$$TMPDIR/get_items.txt" 2>/dev/null | awk '{print $$2}'); \
+	PEAK_MEM=$$(grep "Maximum resident set size" "$$TMPDIR/time.txt" 2>/dev/null | awk '{print $$6}'); \
+	USER_TIME=$$(grep "User time" "$$TMPDIR/time.txt" 2>/dev/null | awk '{print $$4}'); \
+	SYS_TIME=$$(grep "System time" "$$TMPDIR/time.txt" 2>/dev/null | awk '{print $$4}'); \
+	CPU_TIME=$$(echo "$${USER_TIME:-0} + $${SYS_TIME:-0}" | bc 2>/dev/null || echo "N/A"); \
+	echo ""; \
+	echo "========================================="; \
+	echo " Sindarin HTTP Benchmark Results (ASAN)"; \
+	echo "========================================="; \
+	echo ""; \
+	printf "  %-16s %s\n" "Threads:" "$$WRK_THREADS"; \
+	printf "  %-16s %s\n" "Connections:" "$$WRK_CONNECTIONS"; \
+	printf "  %-16s %s per endpoint\n" "Duration:" "$$WRK_DURATION"; \
+	printf "  %-16s %s\n" "Port:" "$$BENCHMARK_PORT"; \
+	printf "  %-16s %s\n" "ASAN:" "enabled"; \
+	echo ""; \
+	echo "  Throughput"; \
+	echo "  -----------------------------------------"; \
+	printf "  %-16s %s req/s\n" "GET  /items" "$${GET_RPS:-N/A}"; \
+	printf "  %-16s %s req/s\n" "POST /items" "$${POST_RPS:-N/A}"; \
+	printf "  %-16s %s req/s\n" "GET  /items/1" "$${GETID_RPS:-N/A}"; \
+	echo ""; \
+	echo "  Latency"; \
+	echo "  -----------------------------------------"; \
+	printf "  %-16s %s\n" "Average:" "$${AVG_LAT:-N/A}"; \
+	printf "  %-16s %s\n" "P99:" "$${P99_LAT:-N/A}"; \
+	echo ""; \
+	echo "  Resources"; \
+	echo "  -----------------------------------------"; \
+	printf "  %-16s %s KB\n" "Peak Memory:" "$${PEAK_MEM:-N/A}"; \
+	printf "  %-16s %s s\n" "CPU Time:" "$${CPU_TIME:-N/A}"; \
+	echo ""; \
+	if grep -qE "AddressSanitizer|LeakSanitizer|ERROR SUMMARY" "$$TMPDIR/server.log" 2>/dev/null; then \
+		echo "  ASAN Report"; \
+		echo "  -----------------------------------------"; \
+		cat "$$TMPDIR/server.log"; \
+		echo ""; \
+	else \
+		echo "  ASAN: No errors detected"; \
+		echo ""; \
+	fi; \
+	rm -rf "$$TMPDIR"

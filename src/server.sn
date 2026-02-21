@@ -138,6 +138,7 @@ struct HttpServer =>
 
         var keepAlive: bool = true
         while keepAlive =>
+            GC.collect()
             var requestData: str = self.readRequest(client)
 
             if requestData.length == 0 =>
@@ -164,7 +165,6 @@ struct HttpServer =>
             client.write(responseBytes)
 
         client.close()
-        GC.collect()
         activeConnections--
 
     # Read HTTP request from client

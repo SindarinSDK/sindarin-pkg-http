@@ -209,12 +209,12 @@ benchmark-clean:
 benchmark-sindarin: benchmark-prereqs | $(BIN_DIR)
 	@echo "Compiling Sindarin benchmark server (ASAN enabled)..."
 	@$(SN) $(BENCHMARK_SINDARIN_SN) -o $(BENCHMARK_SINDARIN_ASAN_BIN) -g -l 1
-	@. $(BENCHMARK_DIR)/config.sh && \
-	TMPDIR=$$(mktemp -d) && \
-	echo "Starting Sindarin server (ASAN enabled)..." && \
+	@. $(BENCHMARK_DIR)/config.sh; \
+	TMPDIR=$$(mktemp -d); \
+	echo "Starting Sindarin server (ASAN enabled)..."; \
 	/usr/bin/time -v -o "$$TMPDIR/time.txt" ./$(BENCHMARK_SINDARIN_ASAN_BIN) > "$$TMPDIR/server.log" 2>&1 & \
-	SERVER_PID=$$! && \
-	ATTEMPT=0 && \
+	SERVER_PID=$$!; \
+	ATTEMPT=0; \
 	while ! curl -s "http://localhost:$$BENCHMARK_PORT/items" > /dev/null 2>&1; do \
 		sleep 0.5; \
 		ATTEMPT=$$((ATTEMPT + 1)); \

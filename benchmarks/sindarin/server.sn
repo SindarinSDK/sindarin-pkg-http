@@ -153,6 +153,9 @@ fn main(): void =>
     # Initialize items storage
     items = Json.array()
 
+    # Enable GC logging for memory diagnostics
+    GC.enableLog()
+
     # Create router
     var router: Router = Router.new()
     router.all("/items", handleItems)

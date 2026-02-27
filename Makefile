@@ -89,7 +89,7 @@ help:
 	@echo "  make benchmark       Run HTTP server benchmarks"
 	@echo "  make benchmark-build Build benchmark implementations only"
 	@echo "  make benchmark-clean Clean benchmark artifacts"
-	@echo "  make benchmark-sindarin  Run Sindarin-only benchmark (ASAN enabled)"
+	@echo "  make benchmark-sindarin  Run Sindarin-only benchmark (interleaved, ASAN)"
 	@echo "  make clean           Remove build artifacts"
 	@echo "  make help            Show this help"
 	@echo ""
@@ -204,7 +204,7 @@ benchmark-clean:
 	@echo "Benchmark clean complete."
 
 #------------------------------------------------------------------------------
-# benchmark-sindarin - Sindarin-only benchmark with ASAN enabled
+# benchmark-sindarin - Interleaved GET+POST+DELETE benchmark with ASAN enabled
 #------------------------------------------------------------------------------
 benchmark-sindarin: benchmark-prereqs | $(BIN_DIR)
 	@echo "Compiling Sindarin benchmark server (ASAN enabled)..."
@@ -228,19 +228,24 @@ benchmark-sindarin: benchmark-prereqs | $(BIN_DIR)
 	done && \
 	echo "Server ready on port $$BENCHMARK_PORT" && \
 	echo "" && \
-	echo "Benchmarking GET /items ($$WRK_DURATION)..." && \
+	echo "Benchmarking interleaved GET+POST+DELETE /items ($$WRK_DURATION)..."; \
 	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
 		--latency "http://localhost:$$BENCHMARK_PORT/items" \
-		> "$$TMPDIR/get_items.txt" 2>&1 && \
-	echo "Benchmarking POST /items ($$WRK_DURATION)..." && \
+		> "$$TMPDIR/get_items.txt" 2>&1 & \
+	GET_PID=$$!; \
 	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
 		--latency -s $(BENCHMARK_DIR)/wrk/post_item.lua \
 		"http://localhost:$$BENCHMARK_PORT/items" \
-		> "$$TMPDIR/post_items.txt" 2>&1 && \
-	echo "Benchmarking GET /items/1 ($$WRK_DURATION)..." && \
+		> "$$TMPDIR/post_items.txt" 2>&1 & \
+	POST_PID=$$!; \
 	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
-		--latency "http://localhost:$$BENCHMARK_PORT/items/1" \
-		> "$$TMPDIR/get_item.txt" 2>&1; \
+		--latency -s $(BENCHMARK_DIR)/wrk/delete_item.lua \
+		"http://localhost:$$BENCHMARK_PORT/items" \
+		> "$$TMPDIR/delete_items.txt" 2>&1 & \
+	DELETE_PID=$$!; \
+	wait $$GET_PID; \
+	wait $$POST_PID; \
+	wait $$DELETE_PID; \
 	echo "Stopping server..."; \
 	pkill -TERM -P $$SERVER_PID 2>/dev/null || true; \
 	sleep 2; \
@@ -249,7 +254,7 @@ benchmark-sindarin: benchmark-prereqs | $(BIN_DIR)
 	sleep 1; \
 	GET_RPS=$$(grep "Requests/sec" "$$TMPDIR/get_items.txt" 2>/dev/null | awk '{print $$2}'); \
 	POST_RPS=$$(grep "Requests/sec" "$$TMPDIR/post_items.txt" 2>/dev/null | awk '{print $$2}'); \
-	GETID_RPS=$$(grep "Requests/sec" "$$TMPDIR/get_item.txt" 2>/dev/null | awk '{print $$2}'); \
+	DELETE_RPS=$$(grep "Requests/sec" "$$TMPDIR/delete_items.txt" 2>/dev/null | awk '{print $$2}'); \
 	AVG_LAT=$$(grep "Latency" "$$TMPDIR/get_items.txt" 2>/dev/null | head -1 | awk '{print $$2}'); \
 	P99_LAT=$$(grep "99%" "$$TMPDIR/get_items.txt" 2>/dev/null | awk '{print $$2}'); \
 	PEAK_MEM=$$(grep "Maximum resident set size" "$$TMPDIR/time.txt" 2>/dev/null | awk '{print $$6}'); \
@@ -263,17 +268,18 @@ benchmark-sindarin: benchmark-prereqs | $(BIN_DIR)
 	echo ""; \
 	printf "  %-16s %s\n" "Threads:" "$$WRK_THREADS"; \
 	printf "  %-16s %s\n" "Connections:" "$$WRK_CONNECTIONS"; \
-	printf "  %-16s %s per endpoint\n" "Duration:" "$$WRK_DURATION"; \
+	printf "  %-16s %s\n" "Duration:" "$$WRK_DURATION"; \
 	printf "  %-16s %s\n" "Port:" "$$BENCHMARK_PORT"; \
+	printf "  %-16s %s\n" "Mode:" "interleaved GET+POST+DELETE"; \
 	printf "  %-16s %s\n" "ASAN:" "enabled"; \
 	echo ""; \
 	echo "  Throughput"; \
 	echo "  -----------------------------------------"; \
 	printf "  %-16s %s req/s\n" "GET  /items" "$${GET_RPS:-N/A}"; \
 	printf "  %-16s %s req/s\n" "POST /items" "$${POST_RPS:-N/A}"; \
-	printf "  %-16s %s req/s\n" "GET  /items/1" "$${GETID_RPS:-N/A}"; \
+	printf "  %-16s %s req/s\n" "DELETE /items" "$${DELETE_RPS:-N/A}"; \
 	echo ""; \
-	echo "  Latency"; \
+	echo "  Latency (GET)"; \
 	echo "  -----------------------------------------"; \
 	printf "  %-16s %s\n" "Average:" "$${AVG_LAT:-N/A}"; \
 	printf "  %-16s %s\n" "P99:" "$${P99_LAT:-N/A}"; \

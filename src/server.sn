@@ -117,6 +117,7 @@ struct HttpServer =>
             var client: TcpStream = listener.accept()
             activeConnections++
             &self.handleClient(client)
+            GC.collect()
 
         listener.close()
 
@@ -138,7 +139,6 @@ struct HttpServer =>
 
         var keepAlive: bool = true
         while keepAlive =>
-            GC.collect()
             var requestData: str = self.readRequest(client)
 
             if requestData.length == 0 =>
@@ -163,6 +163,8 @@ struct HttpServer =>
 
             var responseBytes: byte[] = response.toBytes()
             client.write(responseBytes)
+            
+            GC.collect()
 
         client.close()
         activeConnections--

@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Phony targets
 #------------------------------------------------------------------------------
-.PHONY: all test clean help examples benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin
+.PHONY: all test clean help examples benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin benchmark-sindarin-profile
 
 # Disable implicit rules for .sn.c files (these are compiled by the Sindarin compiler)
 %.sn: %.sn.c
@@ -90,6 +90,7 @@ help:
 	@echo "  make benchmark-build Build benchmark implementations only"
 	@echo "  make benchmark-clean Clean benchmark artifacts"
 	@echo "  make benchmark-sindarin  Run Sindarin-only benchmark (interleaved, ASAN)"
+	@echo "  make benchmark-sindarin-profile  Profile benchmark (perf + flame graph)"
 	@echo "  make clean           Remove build artifacts"
 	@echo "  make help            Show this help"
 	@echo ""
@@ -145,6 +146,7 @@ BENCHMARK_SCRIPT := $(BENCHMARK_DIR)/benchmark.sh
 BENCHMARK_SINDARIN_SN := $(BENCHMARK_DIR)/sindarin/server.sn
 BENCHMARK_SINDARIN_BIN := $(BIN_DIR)/benchmark_sindarin$(EXE_EXT)
 BENCHMARK_SINDARIN_ASAN_BIN := $(BIN_DIR)/benchmark_sindarin_asan$(EXE_EXT)
+BENCHMARK_SINDARIN_PROFILE_BIN := $(BIN_DIR)/benchmark_sindarin_profile$(EXE_EXT)
 
 # Check prerequisites
 benchmark-prereqs:
@@ -299,3 +301,114 @@ benchmark-sindarin: benchmark-prereqs | $(BIN_DIR)
 		echo ""; \
 	fi; \
 	rm -rf "$$TMPDIR"
+
+#------------------------------------------------------------------------------
+# benchmark-sindarin-profile - CPU profile with perf + flame graph
+#------------------------------------------------------------------------------
+FLAMEGRAPH_DIR := /tmp/FlameGraph
+
+benchmark-sindarin-profile: benchmark-prereqs | $(BIN_DIR)
+	@echo "Compiling Sindarin benchmark server (profile mode)..."
+	@$(SN) $(BENCHMARK_SINDARIN_SN) -o $(BENCHMARK_SINDARIN_PROFILE_BIN) -p -l 1
+	@if [ ! -d "$(FLAMEGRAPH_DIR)" ]; then \
+		echo "Cloning FlameGraph tools..."; \
+		git clone --depth 1 https://github.com/brendangregg/FlameGraph.git $(FLAMEGRAPH_DIR) 2>&1 | tail -1; \
+	fi
+	@. $(BENCHMARK_DIR)/config.sh; \
+	RESULTS_DIR=$(BENCHMARK_DIR)/results/profile-$$(date +%Y%m%d-%H%M%S); \
+	mkdir -p "$$RESULTS_DIR"; \
+	echo "Results will be saved to $$RESULTS_DIR"; \
+	echo ""; \
+	echo "Starting Sindarin server (profile mode)..."; \
+	./$(BENCHMARK_SINDARIN_PROFILE_BIN) > "$$RESULTS_DIR/server.log" 2>&1 & \
+	SERVER_PID=$$!; \
+	ATTEMPT=0; \
+	while ! curl -s "http://localhost:$$BENCHMARK_PORT/items" > /dev/null 2>&1; do \
+		sleep 0.5; \
+		ATTEMPT=$$((ATTEMPT + 1)); \
+		if [ $$ATTEMPT -ge 60 ]; then \
+			echo "ERROR: Server failed to start within 30 seconds"; \
+			cat "$$RESULTS_DIR/server.log" 2>/dev/null; \
+			kill $$SERVER_PID 2>/dev/null; \
+			exit 1; \
+		fi; \
+	done && \
+	echo "Server ready on port $$BENCHMARK_PORT (PID $$SERVER_PID)" && \
+	echo "" && \
+	echo "Recording perf profile during benchmark ($$WRK_DURATION)..." && \
+	perf record -g --call-graph dwarf -F 997 -p $$SERVER_PID -o "$$RESULTS_DIR/perf.data" & \
+	PERF_PID=$$!; \
+	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
+		--latency "http://localhost:$$BENCHMARK_PORT/items" \
+		> "$$RESULTS_DIR/wrk_get.txt" 2>&1 & \
+	GET_PID=$$!; \
+	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
+		--latency -s $(BENCHMARK_DIR)/wrk/post_item.lua \
+		"http://localhost:$$BENCHMARK_PORT/items" \
+		> "$$RESULTS_DIR/wrk_post.txt" 2>&1 & \
+	POST_PID=$$!; \
+	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
+		--latency -s $(BENCHMARK_DIR)/wrk/delete_item.lua \
+		"http://localhost:$$BENCHMARK_PORT/items" \
+		> "$$RESULTS_DIR/wrk_delete.txt" 2>&1 & \
+	DELETE_PID=$$!; \
+	wait $$GET_PID; \
+	wait $$POST_PID; \
+	wait $$DELETE_PID; \
+	echo "Benchmark complete, stopping perf..." && \
+	kill -INT $$PERF_PID 2>/dev/null; \
+	wait $$PERF_PID 2>/dev/null; \
+	echo "Stopping server..." && \
+	pkill -TERM -P $$SERVER_PID 2>/dev/null || true; \
+	sleep 2; \
+	kill -0 $$SERVER_PID 2>/dev/null && { pkill -9 -P $$SERVER_PID 2>/dev/null; kill -9 $$SERVER_PID 2>/dev/null; } || true; \
+	fuser -k $$BENCHMARK_PORT/tcp 2>/dev/null || true; \
+	sleep 1; \
+	echo "" && \
+	echo "Generating profile reports..." && \
+	perf report --stdio -i "$$RESULTS_DIR/perf.data" --no-children \
+		> "$$RESULTS_DIR/profile-flat.txt" 2>/dev/null && \
+	perf report --stdio -i "$$RESULTS_DIR/perf.data" -g \
+		> "$$RESULTS_DIR/profile-callgraph.txt" 2>/dev/null && \
+	perf script -i "$$RESULTS_DIR/perf.data" 2>/dev/null \
+		| $(FLAMEGRAPH_DIR)/stackcollapse-perf.pl 2>/dev/null \
+		| $(FLAMEGRAPH_DIR)/flamegraph.pl --title "Sindarin HTTP Server Profile" \
+		> "$$RESULTS_DIR/flamegraph.svg" 2>/dev/null; \
+	GET_RPS=$$(grep "Requests/sec" "$$RESULTS_DIR/wrk_get.txt" 2>/dev/null | awk '{print $$2}'); \
+	POST_RPS=$$(grep "Requests/sec" "$$RESULTS_DIR/wrk_post.txt" 2>/dev/null | awk '{print $$2}'); \
+	DELETE_RPS=$$(grep "Requests/sec" "$$RESULTS_DIR/wrk_delete.txt" 2>/dev/null | awk '{print $$2}'); \
+	AVG_LAT=$$(grep "Latency" "$$RESULTS_DIR/wrk_get.txt" 2>/dev/null | head -1 | awk '{print $$2}'); \
+	P99_LAT=$$(grep "99%" "$$RESULTS_DIR/wrk_get.txt" 2>/dev/null | awk '{print $$2}'); \
+	echo ""; \
+	echo "========================================="; \
+	echo " Sindarin HTTP Profile Results"; \
+	echo "========================================="; \
+	echo ""; \
+	printf "  %-16s %s\n" "Threads:" "$$WRK_THREADS"; \
+	printf "  %-16s %s\n" "Connections:" "$$WRK_CONNECTIONS"; \
+	printf "  %-16s %s\n" "Duration:" "$$WRK_DURATION"; \
+	printf "  %-16s %s\n" "Mode:" "interleaved GET+POST+DELETE"; \
+	printf "  %-16s %s\n" "Build:" "profile (-O2, frame pointers, no ASAN)"; \
+	echo ""; \
+	echo "  Throughput"; \
+	echo "  -----------------------------------------"; \
+	printf "  %-16s %s req/s\n" "GET  /items" "$${GET_RPS:-N/A}"; \
+	printf "  %-16s %s req/s\n" "POST /items" "$${POST_RPS:-N/A}"; \
+	printf "  %-16s %s req/s\n" "DELETE /items" "$${DELETE_RPS:-N/A}"; \
+	echo ""; \
+	echo "  Latency (GET)"; \
+	echo "  -----------------------------------------"; \
+	printf "  %-16s %s\n" "Average:" "$${AVG_LAT:-N/A}"; \
+	printf "  %-16s %s\n" "P99:" "$${P99_LAT:-N/A}"; \
+	echo ""; \
+	echo "  Top 20 Functions (CPU %)"; \
+	echo "  -----------------------------------------"; \
+	head -80 "$$RESULTS_DIR/profile-flat.txt" 2>/dev/null \
+		| grep -E '^\s+[0-9]+\.[0-9]+%' | head -20; \
+	echo ""; \
+	echo "  Output Files"; \
+	echo "  -----------------------------------------"; \
+	echo "  $$RESULTS_DIR/profile-flat.txt"; \
+	echo "  $$RESULTS_DIR/profile-callgraph.txt"; \
+	echo "  $$RESULTS_DIR/flamegraph.svg"; \
+	echo ""

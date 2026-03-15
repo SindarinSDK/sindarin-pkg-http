@@ -20,10 +20,14 @@
 #define PORT 8081
 #define BUFFER_SIZE 8192
 #define INITIAL_CAPACITY 1024
+#define MAX_ITEMS 1000
+#define MAX_NAME_LEN 64
 
 typedef struct {
     int id;
     int active;
+    char name[MAX_NAME_LEN];
+    int value;
 } Item;
 
 static Item *items = NULL;
@@ -75,66 +79,83 @@ static void send_response(int client_fd, int status, const char* status_text,
 
 // GET /items - list all items
 static void handle_list_items(int client_fd) {
-    char body[65536];
+    // 1000 items * ~80 bytes each = ~80KB max
+    char *body = malloc(131072);
+    if (!body) {
+        send_response(client_fd, 500, "Internal Server Error", "application/json",
+            "{\"error\":\"Out of memory\"}");
+        return;
+    }
     int offset = 0;
+    int capacity = 131072;
 
     pthread_mutex_lock(&items_mutex);
 
-    offset += snprintf(body + offset, sizeof(body) - offset, "[");
+    offset += snprintf(body + offset, capacity - offset, "[");
     int first = 1;
-    int count = 0;
-    for (int i = 0; i < items_count && count < 100; i++) {
+    for (int i = 0; i < items_count; i++) {
         if (items[i].active) {
-            if (!first) offset += snprintf(body + offset, sizeof(body) - offset, ",");
-            offset += snprintf(body + offset, sizeof(body) - offset,
-                "{\"id\":%d}", items[i].id);
+            if (!first) offset += snprintf(body + offset, capacity - offset, ",");
+            offset += snprintf(body + offset, capacity - offset,
+                "{\"id\":%d,\"name\":\"%s\",\"value\":%d}",
+                items[i].id, items[i].name, items[i].value);
             first = 0;
-            count++;
         }
     }
-    offset += snprintf(body + offset, sizeof(body) - offset, "]");
+    offset += snprintf(body + offset, capacity - offset, "]");
 
     pthread_mutex_unlock(&items_mutex);
 
     send_response(client_fd, 200, "OK", "application/json", body);
+    free(body);
 }
 
-// POST /items - create item
+// POST /items - upsert item with cycling ID
 static void handle_create_item(int client_fd) {
     char body[512];
 
     pthread_mutex_lock(&items_mutex);
 
-    // Reuse a deleted slot if available
-    int slot = find_free_slot();
-    if (slot < 0) {
-        // No free slots, grow array
-        if (items_count >= items_capacity) {
-            int new_cap = items_capacity ? items_capacity * 2 : INITIAL_CAPACITY;
-            Item *new_items = realloc(items, new_cap * sizeof(Item));
-            if (!new_items) {
-                pthread_mutex_unlock(&items_mutex);
-                send_response(client_fd, 500, "Internal Server Error", "application/json",
-                    "{\"error\":\"Out of memory\"}");
-                return;
-            }
-            items = new_items;
-            items_capacity = new_cap;
-        }
-        slot = items_count++;
-    }
+    int id = (next_id % MAX_ITEMS) + 1;
+    next_id++;
 
-    int id = next_id++;
-    items[slot].id = id;
-    items[slot].active = 1;
+    // Find existing item with this ID and overwrite, or find a free slot
+    int idx = find_item(id);
+    if (idx >= 0) {
+        // Overwrite existing
+        snprintf(items[idx].name, MAX_NAME_LEN, "Item %d", id);
+        items[idx].value = id;
+    } else {
+        // Find a free slot or grow
+        int slot = find_free_slot();
+        if (slot < 0) {
+            if (items_count >= items_capacity) {
+                int new_cap = items_capacity ? items_capacity * 2 : INITIAL_CAPACITY;
+                Item *new_items = realloc(items, new_cap * sizeof(Item));
+                if (!new_items) {
+                    pthread_mutex_unlock(&items_mutex);
+                    send_response(client_fd, 500, "Internal Server Error", "application/json",
+                        "{\"error\":\"Out of memory\"}");
+                    return;
+                }
+                items = new_items;
+                items_capacity = new_cap;
+            }
+            slot = items_count++;
+        }
+        items[slot].id = id;
+        items[slot].active = 1;
+        snprintf(items[slot].name, MAX_NAME_LEN, "Item %d", id);
+        items[slot].value = id;
+    }
 
     pthread_mutex_unlock(&items_mutex);
 
-    snprintf(body, sizeof(body), "{\"id\":%d}", id);
-    send_response(client_fd, 201, "Created", "application/json", body);
+    snprintf(body, sizeof(body), "{\"id\":%d,\"name\":\"Item %d\",\"value\":%d}", id, id, id);
+    send_response(client_fd, 200, "OK", "application/json", body);
 }
 
-// GET /items/{id}
+// GET /items/{id} - returns empty item if not found
 static void handle_get_item(int client_fd, int id) {
     char body[512];
 
@@ -143,52 +164,68 @@ static void handle_get_item(int client_fd, int id) {
     int idx = find_item(id);
     if (idx < 0) {
         pthread_mutex_unlock(&items_mutex);
-        send_response(client_fd, 404, "Not Found", "application/json",
-            "{\"error\":\"Item not found\"}");
+        snprintf(body, sizeof(body), "{\"id\":%d,\"name\":\"\",\"value\":0}", id);
+        send_response(client_fd, 200, "OK", "application/json", body);
         return;
     }
 
-    snprintf(body, sizeof(body), "{\"id\":%d}", items[idx].id);
+    snprintf(body, sizeof(body), "{\"id\":%d,\"name\":\"%s\",\"value\":%d}",
+        items[idx].id, items[idx].name, items[idx].value);
 
     pthread_mutex_unlock(&items_mutex);
 
     send_response(client_fd, 200, "OK", "application/json", body);
 }
 
-// PUT /items/{id}
+// PUT /items/{id} - update or create
 static void handle_update_item(int client_fd, int id) {
     char body[512];
 
     pthread_mutex_lock(&items_mutex);
 
     int idx = find_item(id);
-    if (idx < 0) {
-        pthread_mutex_unlock(&items_mutex);
-        send_response(client_fd, 404, "Not Found", "application/json",
-            "{\"error\":\"Item not found\"}");
-        return;
+    if (idx >= 0) {
+        // Update existing
+        snprintf(items[idx].name, MAX_NAME_LEN, "Item %d", id);
+        items[idx].value = id;
+    } else {
+        // Create new
+        int slot = find_free_slot();
+        if (slot < 0) {
+            if (items_count >= items_capacity) {
+                int new_cap = items_capacity ? items_capacity * 2 : INITIAL_CAPACITY;
+                Item *new_items = realloc(items, new_cap * sizeof(Item));
+                if (!new_items) {
+                    pthread_mutex_unlock(&items_mutex);
+                    send_response(client_fd, 500, "Internal Server Error", "application/json",
+                        "{\"error\":\"Out of memory\"}");
+                    return;
+                }
+                items = new_items;
+                items_capacity = new_cap;
+            }
+            slot = items_count++;
+        }
+        items[slot].id = id;
+        items[slot].active = 1;
+        snprintf(items[slot].name, MAX_NAME_LEN, "Item %d", id);
+        items[slot].value = id;
     }
-
-    snprintf(body, sizeof(body), "{\"id\":%d}", items[idx].id);
 
     pthread_mutex_unlock(&items_mutex);
 
+    snprintf(body, sizeof(body), "{\"id\":%d,\"name\":\"Item %d\",\"value\":%d}", id, id, id);
     send_response(client_fd, 200, "OK", "application/json", body);
 }
 
-// DELETE /items/{id}
+// DELETE /items/{id} - always returns 200
 static void handle_delete_item(int client_fd, int id) {
     pthread_mutex_lock(&items_mutex);
 
     int idx = find_item(id);
-    if (idx < 0) {
-        pthread_mutex_unlock(&items_mutex);
-        send_response(client_fd, 404, "Not Found", "application/json",
-            "{\"error\":\"Item not found\"}");
-        return;
+    if (idx >= 0) {
+        items[idx].active = 0;
     }
-
-    items[idx].active = 0;
 
     pthread_mutex_unlock(&items_mutex);
 
@@ -289,6 +326,23 @@ int main(void) {
     int opt = 1;
 
     signal(SIGPIPE, SIG_IGN);
+
+    // Pre-populate 1000 items
+    items = malloc(INITIAL_CAPACITY * sizeof(Item));
+    if (!items) {
+        perror("malloc failed");
+        exit(1);
+    }
+    items_capacity = INITIAL_CAPACITY;
+    for (int i = 0; i < MAX_ITEMS; i++) {
+        int id = i + 1;
+        items[i].id = id;
+        items[i].active = 1;
+        snprintf(items[i].name, MAX_NAME_LEN, "Item %d", id);
+        items[i].value = id;
+    }
+    items_count = MAX_ITEMS;
+    next_id = 1;
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {

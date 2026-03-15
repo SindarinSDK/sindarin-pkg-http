@@ -14,13 +14,24 @@ struct Item {
 
 struct AppState {
     items: HashMap<i32, Item>,
-    next_id: i32,
+    counter: i32,
 }
 
 fn main() {
+    let mut initial_items = HashMap::new();
+    for i in 1..=1000 {
+        initial_items.insert(
+            i,
+            Item {
+                id: i,
+                data: json!({"name": format!("Item {}", i), "value": i}),
+            },
+        );
+    }
+
     let state = Arc::new(Mutex::new(AppState {
-        items: HashMap::new(),
-        next_id: 1,
+        items: initial_items,
+        counter: 0,
     }));
 
     let server = Server::http("0.0.0.0:8081").expect("Failed to start server");
@@ -133,8 +144,8 @@ fn create_item(state: &Arc<Mutex<AppState>>, body: &str) -> Response<std::io::Cu
 
     let mut data: Value = serde_json::from_str(body).unwrap_or(json!({}));
 
-    let id = state.next_id;
-    state.next_id += 1;
+    let id = (state.counter % 1000) + 1;
+    state.counter += 1;
 
     if let Value::Object(ref mut map) = data {
         map.insert("id".to_string(), json!(id));
@@ -147,7 +158,7 @@ fn create_item(state: &Arc<Mutex<AppState>>, body: &str) -> Response<std::io::Cu
 
     state.items.insert(id, item);
 
-    json_response(201, data)
+    json_response(200, data)
 }
 
 fn get_item(state: &Arc<Mutex<AppState>>, id: i32) -> Response<std::io::Cursor<Vec<u8>>> {
@@ -161,7 +172,7 @@ fn get_item(state: &Arc<Mutex<AppState>>, id: i32) -> Response<std::io::Cursor<V
             }
             json_response(200, value)
         }
-        None => json_response(404, json!({"error": "Item not found"})),
+        None => json_response(200, json!({"id": id, "name": "", "value": 0})),
     }
 }
 
@@ -171,10 +182,6 @@ fn update_item(
     body: &str,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
     let mut state = state.lock().unwrap();
-
-    if !state.items.contains_key(&id) {
-        return json_response(404, json!({"error": "Item not found"}));
-    }
 
     let mut data: Value = serde_json::from_str(body).unwrap_or(json!({}));
 
@@ -194,9 +201,6 @@ fn update_item(
 
 fn delete_item(state: &Arc<Mutex<AppState>>, id: i32) -> Response<std::io::Cursor<Vec<u8>>> {
     let mut state = state.lock().unwrap();
-
-    match state.items.remove(&id) {
-        Some(_) => json_response(200, json!({"deleted": true})),
-        None => json_response(404, json!({"error": "Item not found"})),
-    }
+    state.items.remove(&id);
+    json_response(200, json!({"deleted": true}))
 }

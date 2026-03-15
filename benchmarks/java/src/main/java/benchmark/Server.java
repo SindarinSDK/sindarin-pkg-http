@@ -16,7 +16,13 @@ import java.util.stream.Collectors;
 
 public class Server {
     private static final Map<Integer, String> items = new ConcurrentHashMap<>();
-    private static final AtomicInteger nextId = new AtomicInteger(1);
+    private static final AtomicInteger counter = new AtomicInteger(0);
+
+    static {
+        for (int i = 1; i <= 1000; i++) {
+            items.put(i, "\"name\":\"Item " + i + "\",\"value\":" + i);
+        }
+    }
 
     public static void main(String[] args) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
@@ -114,7 +120,7 @@ public class Server {
             String body = readBody(exchange);
             String data = extractJsonContent(body);
 
-            int id = nextId.getAndIncrement();
+            int id = (counter.getAndIncrement() % 1000) + 1;
             items.put(id, data);
 
             StringBuilder response = new StringBuilder("{\"id\":").append(id);
@@ -123,13 +129,13 @@ public class Server {
             }
             response.append("}");
 
-            sendJsonResponse(exchange, 201, response.toString());
+            sendJsonResponse(exchange, 200, response.toString());
         }
 
         private void getItem(HttpExchange exchange, int id) throws IOException {
             String data = items.get(id);
             if (data == null) {
-                sendJsonResponse(exchange, 404, "{\"error\":\"Item not found\"}");
+                sendJsonResponse(exchange, 200, "{\"id\":" + id + ",\"name\":\"\",\"value\":0}");
                 return;
             }
 
@@ -143,11 +149,6 @@ public class Server {
         }
 
         private void updateItem(HttpExchange exchange, int id) throws IOException {
-            if (!items.containsKey(id)) {
-                sendJsonResponse(exchange, 404, "{\"error\":\"Item not found\"}");
-                return;
-            }
-
             String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
             if (contentType == null || !contentType.contains("application/json")) {
                 sendJsonResponse(exchange, 400, "{\"error\":\"Content-Type must be application/json\"}");
@@ -168,10 +169,7 @@ public class Server {
         }
 
         private void deleteItem(HttpExchange exchange, int id) throws IOException {
-            if (items.remove(id) == null) {
-                sendJsonResponse(exchange, 404, "{\"error\":\"Item not found\"}");
-                return;
-            }
+            items.remove(id);
             sendJsonResponse(exchange, 200, "{\"deleted\":true}");
         }
 

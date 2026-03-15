@@ -28,9 +28,21 @@ func (i Item) MarshalJSON() ([]byte, error) {
 
 var (
 	items   = make(map[int]Item)
-	nextID  = 1
+	counter = 0
 	mu      sync.RWMutex
 )
+
+func init() {
+	for i := 1; i <= 1000; i++ {
+		items[i] = Item{
+			ID: i,
+			Data: map[string]interface{}{
+				"name":  fmt.Sprintf("Item %d", i),
+				"value": float64(i),
+			},
+		}
+	}
+}
 
 func main() {
 	http.HandleFunc("/items", itemsHandler)
@@ -110,14 +122,13 @@ func createItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mu.Lock()
-	id := nextID
-	nextID++
+	id := (counter % 1000) + 1
+	counter++
 
 	item := Item{ID: id, Data: data}
 	items[id] = item
 	mu.Unlock()
 
-	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(item)
 }
 
@@ -127,8 +138,13 @@ func getItem(w http.ResponseWriter, id int) {
 	mu.RUnlock()
 
 	if !exists {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Item not found"})
+		json.NewEncoder(w).Encode(Item{
+			ID: id,
+			Data: map[string]interface{}{
+				"name":  "",
+				"value": float64(0),
+			},
+		})
 		return
 	}
 
@@ -140,15 +156,6 @@ func updateItem(w http.ResponseWriter, r *http.Request, id int) {
 	if !strings.Contains(contentType, "application/json") {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Content-Type must be application/json"})
-		return
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	if _, exists := items[id]; !exists {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Item not found"})
 		return
 	}
 
@@ -164,22 +171,18 @@ func updateItem(w http.ResponseWriter, r *http.Request, id int) {
 		data = make(map[string]interface{})
 	}
 
+	mu.Lock()
 	item := Item{ID: id, Data: data}
 	items[id] = item
+	mu.Unlock()
 
 	json.NewEncoder(w).Encode(item)
 }
 
 func deleteItem(w http.ResponseWriter, id int) {
 	mu.Lock()
-	defer mu.Unlock()
-
-	if _, exists := items[id]; !exists {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Item not found"})
-		return
-	}
-
 	delete(items, id)
+	mu.Unlock()
+
 	json.NewEncoder(w).Encode(map[string]bool{"deleted": true})
 }

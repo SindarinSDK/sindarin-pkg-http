@@ -6,6 +6,7 @@ local counter = 0
 
 request = function()
     counter = counter + 1
-    local body = string.format('{"name":"Item %d","value":%d}', counter, counter)
+    local id = (counter % 1000) + 1
+    local body = string.format('{"name":"Item %d","value":%d}', id, id)
     return wrk.format(nil, nil, nil, body)
 end

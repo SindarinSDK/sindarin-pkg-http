@@ -11,6 +11,10 @@ items = {}
 next_id = 1
 lock = threading.Lock()
 
+# Pre-populate 1000 items
+for _i in range(1, 1001):
+    items[_i] = {'name': f'Item {_i}', 'value': _i}
+
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
@@ -114,13 +118,13 @@ class RequestHandler(BaseHTTPRequestHandler):
             data = {}
 
         with lock:
-            item_id = next_id
+            item_id = ((next_id - 1) % 1000) + 1
             next_id += 1
             items[item_id] = data
 
         result = {'id': item_id}
         result.update(data)
-        self.send_json(201, result)
+        self.send_json(200, result)
 
     def get_item(self, item_id):
         global items
@@ -128,7 +132,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             data = items.get(item_id)
 
         if data is None:
-            self.send_json(404, {'error': 'Item not found'})
+            self.send_json(200, {'id': item_id, 'name': '', 'value': 0})
             return
 
         result = {'id': item_id}
@@ -142,17 +146,13 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_json(400, {'error': 'Content-Type must be application/json'})
             return
 
+        body = self.read_body()
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            data = {}
+
         with lock:
-            if item_id not in items:
-                self.send_json(404, {'error': 'Item not found'})
-                return
-
-            body = self.read_body()
-            try:
-                data = json.loads(body)
-            except json.JSONDecodeError:
-                data = {}
-
             items[item_id] = data
 
         result = {'id': item_id}
@@ -162,10 +162,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     def delete_item(self, item_id):
         global items
         with lock:
-            if item_id not in items:
-                self.send_json(404, {'error': 'Item not found'})
-                return
-            del items[item_id]
+            items.pop(item_id, None)
 
         self.send_json(200, {'deleted': True})
 

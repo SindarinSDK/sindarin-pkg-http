@@ -11,6 +11,17 @@ class Server
 
     static async Task Main()
     {
+        // Pre-populate 1000 items
+        for (int i = 1; i <= 1000; i++)
+        {
+            var item = new Dictionary<string, JsonElement>
+            {
+                ["name"] = JsonSerializer.SerializeToElement($"Item {i}"),
+                ["value"] = JsonSerializer.SerializeToElement(i)
+            };
+            Items[i] = item;
+        }
+
         var listener = new HttpListener();
         listener.Prefixes.Add("http://localhost:8081/");
         listener.Start();
@@ -146,7 +157,8 @@ class Server
         int id;
         lock (IdLock)
         {
-            id = _nextId++;
+            id = ((_nextId - 1) % 1000) + 1;
+            _nextId++;
         }
 
         Items[id] = data;
@@ -156,15 +168,14 @@ class Server
             ["id"] = JsonSerializer.SerializeToElement(id)
         };
 
-        response.StatusCode = 201;
-        await SendResponse(response, 201, JsonSerializer.Serialize(result));
+        await SendResponse(response, 200, JsonSerializer.Serialize(result));
     }
 
     static async Task GetItem(HttpListenerResponse response, int id)
     {
         if (!Items.TryGetValue(id, out var data))
         {
-            await SendResponse(response, 404, "{\"error\":\"Item not found\"}");
+            await SendResponse(response, 200, $"{{\"id\":{id},\"name\":\"\",\"value\":0}}");
             return;
         }
 
@@ -178,12 +189,6 @@ class Server
 
     static async Task UpdateItem(HttpListenerRequest request, HttpListenerResponse response, int id)
     {
-        if (!Items.ContainsKey(id))
-        {
-            await SendResponse(response, 404, "{\"error\":\"Item not found\"}");
-            return;
-        }
-
         var contentType = request.ContentType ?? "";
         if (!contentType.Contains("application/json"))
         {
@@ -217,12 +222,7 @@ class Server
 
     static async Task DeleteItem(HttpListenerResponse response, int id)
     {
-        if (!Items.TryRemove(id, out _))
-        {
-            await SendResponse(response, 404, "{\"error\":\"Item not found\"}");
-            return;
-        }
-
+        Items.TryRemove(id, out _);
         await SendResponse(response, 200, "{\"deleted\":true}");
     }
 

@@ -3,6 +3,11 @@ const http = require('http');
 let items = {};
 let nextId = 1;
 
+// Pre-populate 1000 items
+for (let i = 1; i <= 1000; i++) {
+    items[i] = { name: `Item ${i}`, value: i };
+}
+
 const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const path = url.pathname;
@@ -103,27 +108,23 @@ async function createItem(req, res) {
         data = {};
     }
 
-    const id = nextId++;
+    const id = ((nextId - 1) % 1000) + 1;
+    nextId++;
     items[id] = data;
 
-    sendJson(res, 201, { id, ...data });
+    sendJson(res, 200, { id, ...data });
 }
 
 function getItem(res, id) {
     const data = items[id];
     if (!data) {
-        sendJson(res, 404, { error: 'Item not found' });
+        sendJson(res, 200, { id, name: '', value: 0 });
         return;
     }
     sendJson(res, 200, { id, ...data });
 }
 
 async function updateItem(req, res, id) {
-    if (!(id in items)) {
-        sendJson(res, 404, { error: 'Item not found' });
-        return;
-    }
-
     if (!isJsonContentType(req)) {
         sendJson(res, 400, { error: 'Content-Type must be application/json' });
         return;
@@ -142,10 +143,6 @@ async function updateItem(req, res, id) {
 }
 
 function deleteItem(res, id) {
-    if (!(id in items)) {
-        sendJson(res, 404, { error: 'Item not found' });
-        return;
-    }
     delete items[id];
     sendJson(res, 200, { deleted: true });
 }

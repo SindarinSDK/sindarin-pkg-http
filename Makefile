@@ -303,24 +303,33 @@ benchmark-sindarin: benchmark-prereqs | $(BIN_DIR)
 	rm -rf "$$TMPDIR"
 
 #------------------------------------------------------------------------------
-# benchmark-sindarin-profile - CPU profile with perf + flame graph
+# benchmark-sindarin-profile - CPU profile with gperftools + flame graph
 #------------------------------------------------------------------------------
 FLAMEGRAPH_DIR := /tmp/FlameGraph
+LIBPROFILER := $(shell ldconfig -p 2>/dev/null | grep libprofiler.so$$ | awk '{print $$NF}' | head -1)
 
 benchmark-sindarin-profile: benchmark-prereqs | $(BIN_DIR)
 	@echo "Compiling Sindarin benchmark server (profile mode)..."
-	@$(SN) $(BENCHMARK_SINDARIN_SN) -o $(BENCHMARK_SINDARIN_PROFILE_BIN) -p -l 1
+	@SN_PROFILE_CFLAGS="-O2 -fno-omit-frame-pointer -g -no-pie" $(SN) $(BENCHMARK_SINDARIN_SN) -o $(BENCHMARK_SINDARIN_PROFILE_BIN) -p -l 1
 	@if [ ! -d "$(FLAMEGRAPH_DIR)" ]; then \
 		echo "Cloning FlameGraph tools..."; \
 		git clone --depth 1 https://github.com/brendangregg/FlameGraph.git $(FLAMEGRAPH_DIR) 2>&1 | tail -1; \
+	fi
+	@if [ -z "$(LIBPROFILER)" ]; then \
+		echo "ERROR: libprofiler.so not found. Install gperftools:"; \
+		echo "  sudo apt-get install google-perftools libgoogle-perftools-dev"; \
+		exit 1; \
 	fi
 	@. $(BENCHMARK_DIR)/config.sh; \
 	RESULTS_DIR=$(BENCHMARK_DIR)/results/profile-$$(date +%Y%m%d-%H%M%S); \
 	mkdir -p "$$RESULTS_DIR"; \
 	echo "Results will be saved to $$RESULTS_DIR"; \
+	echo "Profiler: gperftools ($(LIBPROFILER))"; \
 	echo ""; \
 	echo "Starting Sindarin server (profile mode)..."; \
-	./$(BENCHMARK_SINDARIN_PROFILE_BIN) > "$$RESULTS_DIR/server.log" 2>&1 & \
+	CPUPROFILE="$$RESULTS_DIR/cpu.prof" CPUPROFILE_FREQUENCY=997 \
+		LD_PRELOAD="$(LIBPROFILER)" \
+		./$(BENCHMARK_SINDARIN_PROFILE_BIN) > "$$RESULTS_DIR/server.log" 2>&1 & \
 	SERVER_PID=$$!; \
 	ATTEMPT=0; \
 	while ! curl -s "http://localhost:$$BENCHMARK_PORT/items" > /dev/null 2>&1; do \
@@ -335,9 +344,7 @@ benchmark-sindarin-profile: benchmark-prereqs | $(BIN_DIR)
 	done && \
 	echo "Server ready on port $$BENCHMARK_PORT (PID $$SERVER_PID)" && \
 	echo "" && \
-	echo "Recording perf profile during benchmark ($$WRK_DURATION)..." && \
-	perf record -g --call-graph dwarf -F 997 -p $$SERVER_PID -o "$$RESULTS_DIR/perf.data" & \
-	PERF_PID=$$!; \
+	echo "Running benchmark ($$WRK_DURATION)..." && \
 	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
 		--latency "http://localhost:$$BENCHMARK_PORT/items" \
 		> "$$RESULTS_DIR/wrk_get.txt" 2>&1 & \
@@ -355,23 +362,19 @@ benchmark-sindarin-profile: benchmark-prereqs | $(BIN_DIR)
 	wait $$GET_PID; \
 	wait $$POST_PID; \
 	wait $$DELETE_PID; \
-	echo "Benchmark complete, stopping perf..." && \
-	kill -INT $$PERF_PID 2>/dev/null; \
-	wait $$PERF_PID 2>/dev/null; \
-	echo "Stopping server..." && \
-	pkill -TERM -P $$SERVER_PID 2>/dev/null || true; \
+	echo "Benchmark complete, stopping server..." && \
+	kill -TERM $$SERVER_PID 2>/dev/null; \
 	sleep 2; \
-	kill -0 $$SERVER_PID 2>/dev/null && { pkill -9 -P $$SERVER_PID 2>/dev/null; kill -9 $$SERVER_PID 2>/dev/null; } || true; \
+	kill -0 $$SERVER_PID 2>/dev/null && kill -9 $$SERVER_PID 2>/dev/null || true; \
 	fuser -k $$BENCHMARK_PORT/tcp 2>/dev/null || true; \
 	sleep 1; \
 	echo "" && \
 	echo "Generating profile reports..." && \
-	perf report --stdio -i "$$RESULTS_DIR/perf.data" --no-children \
+	google-pprof --text ./$(BENCHMARK_SINDARIN_PROFILE_BIN) "$$RESULTS_DIR/cpu.prof" \
 		> "$$RESULTS_DIR/profile-flat.txt" 2>/dev/null && \
-	perf report --stdio -i "$$RESULTS_DIR/perf.data" -g \
-		> "$$RESULTS_DIR/profile-callgraph.txt" 2>/dev/null && \
-	perf script -i "$$RESULTS_DIR/perf.data" 2>/dev/null \
-		| $(FLAMEGRAPH_DIR)/stackcollapse-perf.pl 2>/dev/null \
+	google-pprof --callgrind ./$(BENCHMARK_SINDARIN_PROFILE_BIN) "$$RESULTS_DIR/cpu.prof" \
+		> "$$RESULTS_DIR/profile-callgrind.txt" 2>/dev/null && \
+	google-pprof --collapsed ./$(BENCHMARK_SINDARIN_PROFILE_BIN) "$$RESULTS_DIR/cpu.prof" 2>/dev/null \
 		| $(FLAMEGRAPH_DIR)/flamegraph.pl --title "Sindarin HTTP Server Profile" \
 		> "$$RESULTS_DIR/flamegraph.svg" 2>/dev/null; \
 	GET_RPS=$$(grep "Requests/sec" "$$RESULTS_DIR/wrk_get.txt" 2>/dev/null | awk '{print $$2}'); \
@@ -388,6 +391,7 @@ benchmark-sindarin-profile: benchmark-prereqs | $(BIN_DIR)
 	printf "  %-16s %s\n" "Connections:" "$$WRK_CONNECTIONS"; \
 	printf "  %-16s %s\n" "Duration:" "$$WRK_DURATION"; \
 	printf "  %-16s %s\n" "Mode:" "interleaved GET+POST+DELETE"; \
+	printf "  %-16s %s\n" "Profiler:" "gperftools (LD_PRELOAD)"; \
 	printf "  %-16s %s\n" "Build:" "profile (-O2, frame pointers, no ASAN)"; \
 	echo ""; \
 	echo "  Throughput"; \
@@ -403,12 +407,11 @@ benchmark-sindarin-profile: benchmark-prereqs | $(BIN_DIR)
 	echo ""; \
 	echo "  Top 20 Functions (CPU %)"; \
 	echo "  -----------------------------------------"; \
-	head -80 "$$RESULTS_DIR/profile-flat.txt" 2>/dev/null \
-		| grep -E '^\s+[0-9]+\.[0-9]+%' | head -20; \
+	head -25 "$$RESULTS_DIR/profile-flat.txt" 2>/dev/null; \
 	echo ""; \
 	echo "  Output Files"; \
 	echo "  -----------------------------------------"; \
 	echo "  $$RESULTS_DIR/profile-flat.txt"; \
-	echo "  $$RESULTS_DIR/profile-callgraph.txt"; \
+	echo "  $$RESULTS_DIR/profile-callgrind.txt"; \
 	echo "  $$RESULTS_DIR/flamegraph.svg"; \
 	echo ""

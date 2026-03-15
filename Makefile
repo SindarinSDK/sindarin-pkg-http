@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Phony targets
 #------------------------------------------------------------------------------
-.PHONY: all test clean help examples benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin benchmark-sindarin-profile
+.PHONY: all test clean help examples benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin benchmark-sindarin-no-asan benchmark-sindarin-profile
 
 # Disable implicit rules for .sn.c files (these are compiled by the Sindarin compiler)
 %.sn: %.sn.c
@@ -139,7 +139,7 @@ examples: $(HTML_SERVER_BIN) $(JSON_SERVER_BIN) $(JSON_CLIENT_BIN) $(SIMPLE_SERV
 #------------------------------------------------------------------------------
 # benchmark - Run HTTP server benchmarks
 #------------------------------------------------------------------------------
-.PHONY: benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin
+.PHONY: benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin benchmark-sindarin-no-asan
 
 BENCHMARK_DIR := benchmarks
 BENCHMARK_SCRIPT := $(BENCHMARK_DIR)/benchmark.sh
@@ -204,6 +204,94 @@ benchmark-clean:
 	@if [ -d "$(BENCHMARK_DIR)/java" ]; then rm -rf $(BENCHMARK_DIR)/java/out; fi
 	@if [ -d "$(BENCHMARK_DIR)/csharp" ]; then rm -rf $(BENCHMARK_DIR)/csharp/out $(BENCHMARK_DIR)/csharp/bin $(BENCHMARK_DIR)/csharp/obj; fi
 	@echo "Benchmark clean complete."
+
+#------------------------------------------------------------------------------
+# benchmark-sindarin-no-asan - Interleaved GET+POST+DELETE benchmark (no ASAN)
+#------------------------------------------------------------------------------
+benchmark-sindarin-no-asan: benchmark-prereqs | $(BIN_DIR)
+	@echo "Compiling Sindarin benchmark server (no ASAN)..."
+	@$(SN) $(BENCHMARK_SINDARIN_SN) -o $(BENCHMARK_SINDARIN_BIN) -l 1
+	@. $(BENCHMARK_DIR)/config.sh; \
+	TMPDIR=$$(mktemp -d); \
+	echo "Starting Sindarin server (no ASAN)..."; \
+	/usr/bin/time -v -o "$$TMPDIR/time.txt" ./$(BENCHMARK_SINDARIN_BIN) > "$$TMPDIR/server.log" 2>&1 & \
+	SERVER_PID=$$!; \
+	ATTEMPT=0; \
+	while ! curl -s "http://localhost:$$BENCHMARK_PORT/items" > /dev/null 2>&1; do \
+		sleep 0.5; \
+		ATTEMPT=$$((ATTEMPT + 1)); \
+		if [ $$ATTEMPT -ge 60 ]; then \
+			echo "ERROR: Server failed to start within 30 seconds"; \
+			cat "$$TMPDIR/server.log" 2>/dev/null; \
+			kill $$SERVER_PID 2>/dev/null; \
+			rm -rf "$$TMPDIR"; \
+			exit 1; \
+		fi; \
+	done && \
+	echo "Server ready on port $$BENCHMARK_PORT" && \
+	echo "" && \
+	echo "Benchmarking interleaved GET+POST+DELETE /items ($$WRK_DURATION)..."; \
+	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
+		--latency "http://localhost:$$BENCHMARK_PORT/items" \
+		> "$$TMPDIR/get_items.txt" 2>&1 & \
+	GET_PID=$$!; \
+	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
+		--latency -s $(BENCHMARK_DIR)/wrk/post_item.lua \
+		"http://localhost:$$BENCHMARK_PORT/items" \
+		> "$$TMPDIR/post_items.txt" 2>&1 & \
+	POST_PID=$$!; \
+	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
+		--latency -s $(BENCHMARK_DIR)/wrk/delete_item.lua \
+		"http://localhost:$$BENCHMARK_PORT/items" \
+		> "$$TMPDIR/delete_items.txt" 2>&1 & \
+	DELETE_PID=$$!; \
+	wait $$GET_PID; \
+	wait $$POST_PID; \
+	wait $$DELETE_PID; \
+	echo "Stopping server..."; \
+	pkill -TERM -P $$SERVER_PID 2>/dev/null || true; \
+	sleep 2; \
+	kill -0 $$SERVER_PID 2>/dev/null && { pkill -9 -P $$SERVER_PID 2>/dev/null; kill -9 $$SERVER_PID 2>/dev/null; } || true; \
+	fuser -k $$BENCHMARK_PORT/tcp 2>/dev/null || true; \
+	sleep 1; \
+	GET_RPS=$$(grep "Requests/sec" "$$TMPDIR/get_items.txt" 2>/dev/null | awk '{print $$2}'); \
+	POST_RPS=$$(grep "Requests/sec" "$$TMPDIR/post_items.txt" 2>/dev/null | awk '{print $$2}'); \
+	DELETE_RPS=$$(grep "Requests/sec" "$$TMPDIR/delete_items.txt" 2>/dev/null | awk '{print $$2}'); \
+	AVG_LAT=$$(grep "Latency" "$$TMPDIR/get_items.txt" 2>/dev/null | head -1 | awk '{print $$2}'); \
+	P99_LAT=$$(grep "99%" "$$TMPDIR/get_items.txt" 2>/dev/null | awk '{print $$2}'); \
+	PEAK_MEM=$$(grep "Maximum resident set size" "$$TMPDIR/time.txt" 2>/dev/null | awk '{print $$6}'); \
+	USER_TIME=$$(grep "User time" "$$TMPDIR/time.txt" 2>/dev/null | awk '{print $$4}'); \
+	SYS_TIME=$$(grep "System time" "$$TMPDIR/time.txt" 2>/dev/null | awk '{print $$4}'); \
+	CPU_TIME=$$(echo "$${USER_TIME:-0} + $${SYS_TIME:-0}" | bc 2>/dev/null || echo "N/A"); \
+	echo ""; \
+	echo "========================================="; \
+	echo " Sindarin HTTP Benchmark Results (no ASAN)"; \
+	echo "========================================="; \
+	echo ""; \
+	printf "  %-16s %s\n" "Threads:" "$$WRK_THREADS"; \
+	printf "  %-16s %s\n" "Connections:" "$$WRK_CONNECTIONS"; \
+	printf "  %-16s %s\n" "Duration:" "$$WRK_DURATION"; \
+	printf "  %-16s %s\n" "Port:" "$$BENCHMARK_PORT"; \
+	printf "  %-16s %s\n" "Mode:" "interleaved GET+POST+DELETE"; \
+	printf "  %-16s %s\n" "ASAN:" "disabled"; \
+	echo ""; \
+	echo "  Throughput"; \
+	echo "  -----------------------------------------"; \
+	printf "  %-16s %s req/s\n" "GET  /items" "$${GET_RPS:-N/A}"; \
+	printf "  %-16s %s req/s\n" "POST /items" "$${POST_RPS:-N/A}"; \
+	printf "  %-16s %s req/s\n" "DELETE /items" "$${DELETE_RPS:-N/A}"; \
+	echo ""; \
+	echo "  Latency (GET)"; \
+	echo "  -----------------------------------------"; \
+	printf "  %-16s %s\n" "Average:" "$${AVG_LAT:-N/A}"; \
+	printf "  %-16s %s\n" "P99:" "$${P99_LAT:-N/A}"; \
+	echo ""; \
+	echo "  Resources"; \
+	echo "  -----------------------------------------"; \
+	printf "  %-16s %s KB\n" "Peak Memory:" "$${PEAK_MEM:-N/A}"; \
+	printf "  %-16s %s s\n" "CPU Time:" "$${CPU_TIME:-N/A}"; \
+	echo ""; \
+	rm -rf "$$TMPDIR"
 
 #------------------------------------------------------------------------------
 # benchmark-sindarin - Interleaved GET+POST+DELETE benchmark with ASAN enabled

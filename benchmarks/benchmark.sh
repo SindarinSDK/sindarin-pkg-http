@@ -228,24 +228,28 @@ run_benchmark() {
         return 1
     fi
 
-    # GET /items benchmark (start fresh - no warmup for this)
-    log "Benchmarking GET /items..."
+    # Interleaved GET+POST+DELETE benchmark (all concurrent)
+    log "Benchmarking interleaved GET+POST+DELETE /items..."
     wrk -t"$WRK_THREADS" -c"$WRK_CONNECTIONS" -d"$WRK_DURATION" \
         --latency "http://localhost:$PORT/items" \
-        > "$RESULTS_DIR/${lang}_get_items.txt" 2>&1
+        > "$RESULTS_DIR/${lang}_get_items.txt" 2>&1 &
+    local get_pid=$!
 
-    # POST /items benchmark (using Lua script)
-    log "Benchmarking POST /items..."
     wrk -t"$WRK_THREADS" -c"$WRK_CONNECTIONS" -d"$WRK_DURATION" \
         --latency -s "$SCRIPT_DIR/wrk/post_item.lua" \
         "http://localhost:$PORT/items" \
-        > "$RESULTS_DIR/${lang}_post_items.txt" 2>&1
+        > "$RESULTS_DIR/${lang}_post_items.txt" 2>&1 &
+    local post_pid=$!
 
-    # GET /items/{id} benchmark (items already exist from POST test)
-    log "Benchmarking GET /items/1..."
     wrk -t"$WRK_THREADS" -c"$WRK_CONNECTIONS" -d"$WRK_DURATION" \
-        --latency "http://localhost:$PORT/items/1" \
-        > "$RESULTS_DIR/${lang}_get_item.txt" 2>&1
+        --latency -s "$SCRIPT_DIR/wrk/delete_item.lua" \
+        "http://localhost:$PORT/items" \
+        > "$RESULTS_DIR/${lang}_delete_items.txt" 2>&1 &
+    local delete_pid=$!
+
+    wait $get_pid
+    wait $post_pid
+    wait $delete_pid
 
     # Stop server
     stop_server "$pid"
@@ -300,7 +304,7 @@ Generated: $date_str
 | Parameter | Value |
 |-----------|-------|
 | Load Testing Tool | wrk |
-| Duration | $WRK_DURATION per endpoint |
+| Duration | $WRK_DURATION (interleaved GET+POST+DELETE) |
 | Threads | $WRK_THREADS |
 | Connections | $WRK_CONNECTIONS |
 | Warmup | $WARMUP_DURATION |
@@ -308,7 +312,7 @@ Generated: $date_str
 
 ## Results Summary
 
-| Language | GET /items (req/s) | POST /items (req/s) | GET /items/1 (req/s) | Avg Latency | P99 Latency | Peak Memory (KB) | CPU Time (s) |
+| Language | GET /items (req/s) | POST /items (req/s) | DELETE /items (req/s) | Avg Latency | P99 Latency | Peak Memory (KB) | CPU Time (s) |
 |----------|-------------------|--------------------|--------------------|-------------|-------------|------------------|--------------|
 EOF
 
@@ -316,7 +320,7 @@ EOF
         if [ -f "$RESULTS_DIR/${lang}_get_items.txt" ]; then
             local get_rps=$(parse_wrk_rps "$RESULTS_DIR/${lang}_get_items.txt")
             local post_rps=$(parse_wrk_rps "$RESULTS_DIR/${lang}_post_items.txt")
-            local getid_rps=$(parse_wrk_rps "$RESULTS_DIR/${lang}_get_item.txt")
+            local getid_rps=$(parse_wrk_rps "$RESULTS_DIR/${lang}_delete_items.txt")
             local lat=$(parse_wrk_latency "$RESULTS_DIR/${lang}_get_items.txt")
             local p99=$(parse_wrk_p99 "$RESULTS_DIR/${lang}_get_items.txt")
             local mem=$(parse_time_memory "$RESULTS_DIR/${lang}_time.txt")
@@ -332,6 +336,7 @@ EOF
 
 - All servers implement the same REST API with in-memory storage
 - Sindarin is the reference implementation using sindarin-pkg-http
+- All endpoints (GET, POST, DELETE) are benchmarked concurrently (interleaved)
 - Memory measured using `/usr/bin/time -v` (Maximum resident set size in KB)
 - CPU time is user + system time during the benchmark period
 

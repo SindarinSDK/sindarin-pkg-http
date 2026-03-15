@@ -22,9 +22,6 @@ sync var itemsLock: int = 0
 
 var nextId: int = 1
 
-# Max items to store (prevent memory exhaustion during benchmarks)
-var maxItems: int = 10000
-
 # Extract ID from path like "/items/123"
 fn extractId(path: str): int =>
     var parts: str[] = path.split("/")
@@ -68,9 +65,7 @@ fn createItem(req: HttpRequest): HttpResponse =>
         # idVal disposed when local arena is cleaned up
         nextId = nextId + 1
 
-        # Limit items to prevent memory exhaustion during benchmarks
-        if items.length() < maxItems =>
-            items.append(body)
+        items.append(body)
 
         resp = HttpResponse.created().jsonPretty(body)
         # body disposed when local arena is cleaned up

@@ -1,6 +1,7 @@
 /*
  * HTTP JSON REST API Server - C Implementation
  * Uses raw sockets with pthreads for concurrent request handling
+ * Supports HTTP keep-alive connections
  */
 
 #include <stdio.h>
@@ -10,28 +11,30 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <signal.h>
+#include <strings.h>
 
 #define PORT 8081
-#define BUFFER_SIZE 4096
-#define MAX_ITEMS 10000
+#define BUFFER_SIZE 8192
+#define INITIAL_CAPACITY 1024
 
 typedef struct {
     int id;
-    char data[256];
     int active;
 } Item;
 
-static Item items[MAX_ITEMS];
+static Item *items = NULL;
+static int items_capacity = 0;
+static int items_count = 0;
 static int next_id = 1;
-static int item_count = 0;
 static pthread_mutex_t items_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Find item by ID, returns index or -1
 static int find_item(int id) {
-    for (int i = 0; i < MAX_ITEMS; i++) {
+    for (int i = 0; i < items_count; i++) {
         if (items[i].active && items[i].id == id) {
             return i;
         }
@@ -39,9 +42,9 @@ static int find_item(int id) {
     return -1;
 }
 
-// Find free slot
-static int find_free_slot() {
-    for (int i = 0; i < MAX_ITEMS; i++) {
+// Find free slot (reuse deleted entries)
+static int find_free_slot(void) {
+    for (int i = 0; i < items_count; i++) {
         if (!items[i].active) {
             return i;
         }
@@ -49,27 +52,28 @@ static int find_free_slot() {
     return -1;
 }
 
-// Send HTTP response
+// Send HTTP response (keep-alive)
 static void send_response(int client_fd, int status, const char* status_text,
                           const char* content_type, const char* body) {
     char header[512];
-    int body_len = body ? strlen(body) : 0;
+    int body_len = body ? (int)strlen(body) : 0;
 
     int header_len = snprintf(header, sizeof(header),
         "HTTP/1.1 %d %s\r\n"
         "Content-Type: %s\r\n"
         "Content-Length: %d\r\n"
-        "Connection: close\r\n"
         "\r\n",
         status, status_text, content_type, body_len);
 
-    send(client_fd, header, header_len, 0);
     if (body && body_len > 0) {
+        send(client_fd, header, header_len, MSG_MORE);
         send(client_fd, body, body_len, 0);
+    } else {
+        send(client_fd, header, header_len, 0);
     }
 }
 
-// GET /items - list all items (simplified - just return count for perf)
+// GET /items - list all items
 static void handle_list_items(int client_fd) {
     char body[65536];
     int offset = 0;
@@ -79,7 +83,7 @@ static void handle_list_items(int client_fd) {
     offset += snprintf(body + offset, sizeof(body) - offset, "[");
     int first = 1;
     int count = 0;
-    for (int i = 0; i < MAX_ITEMS && count < 100; i++) {  // Limit to 100 items in response
+    for (int i = 0; i < items_count && count < 100; i++) {
         if (items[i].active) {
             if (!first) offset += snprintf(body + offset, sizeof(body) - offset, ",");
             offset += snprintf(body + offset, sizeof(body) - offset,
@@ -96,25 +100,34 @@ static void handle_list_items(int client_fd) {
 }
 
 // POST /items - create item
-static void handle_create_item(int client_fd, const char* json_body) {
+static void handle_create_item(int client_fd) {
     char body[512];
 
     pthread_mutex_lock(&items_mutex);
 
+    // Reuse a deleted slot if available
     int slot = find_free_slot();
     if (slot < 0) {
-        pthread_mutex_unlock(&items_mutex);
-        send_response(client_fd, 500, "Internal Server Error", "application/json",
-            "{\"error\":\"Storage full\"}");
-        return;
+        // No free slots, grow array
+        if (items_count >= items_capacity) {
+            int new_cap = items_capacity ? items_capacity * 2 : INITIAL_CAPACITY;
+            Item *new_items = realloc(items, new_cap * sizeof(Item));
+            if (!new_items) {
+                pthread_mutex_unlock(&items_mutex);
+                send_response(client_fd, 500, "Internal Server Error", "application/json",
+                    "{\"error\":\"Out of memory\"}");
+                return;
+            }
+            items = new_items;
+            items_capacity = new_cap;
+        }
+        slot = items_count++;
     }
 
-    items[slot].id = next_id++;
+    int id = next_id++;
+    items[slot].id = id;
     items[slot].active = 1;
-    items[slot].data[0] = '\0';
-    item_count++;
 
-    int id = items[slot].id;
     pthread_mutex_unlock(&items_mutex);
 
     snprintf(body, sizeof(body), "{\"id\":%d}", id);
@@ -143,7 +156,7 @@ static void handle_get_item(int client_fd, int id) {
 }
 
 // PUT /items/{id}
-static void handle_update_item(int client_fd, int id, const char* json_body) {
+static void handle_update_item(int client_fd, int id) {
     char body[512];
 
     pthread_mutex_lock(&items_mutex);
@@ -176,39 +189,19 @@ static void handle_delete_item(int client_fd, int id) {
     }
 
     items[idx].active = 0;
-    item_count--;
 
     pthread_mutex_unlock(&items_mutex);
 
     send_response(client_fd, 200, "OK", "application/json", "{\"deleted\":true}");
 }
 
-// Parse request and route
-static void handle_request(int client_fd) {
-    char buffer[BUFFER_SIZE];
-    ssize_t bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-
-    if (bytes <= 0) {
-        close(client_fd);
-        return;
-    }
-
-    buffer[bytes] = '\0';
-
-    // Parse method and path
-    char method[16] = {0}, path[256] = {0};
-    sscanf(buffer, "%15s %255s", method, path);
-
-    // Find body (after \r\n\r\n)
-    char* body = strstr(buffer, "\r\n\r\n");
-    if (body) body += 4;
-
-    // Route request
+// Route a parsed request
+static void route_request(int client_fd, const char *method, const char *path) {
     if (strcmp(path, "/items") == 0) {
         if (strcmp(method, "GET") == 0) {
             handle_list_items(client_fd);
         } else if (strcmp(method, "POST") == 0) {
-            handle_create_item(client_fd, body ? body : "{}");
+            handle_create_item(client_fd);
         } else {
             send_response(client_fd, 405, "Method Not Allowed", "text/plain",
                 "Method not allowed");
@@ -221,7 +214,7 @@ static void handle_request(int client_fd) {
         } else if (strcmp(method, "GET") == 0) {
             handle_get_item(client_fd, id);
         } else if (strcmp(method, "PUT") == 0) {
-            handle_update_item(client_fd, id, body ? body : "{}");
+            handle_update_item(client_fd, id);
         } else if (strcmp(method, "DELETE") == 0) {
             handle_delete_item(client_fd, id);
         } else {
@@ -231,40 +224,80 @@ static void handle_request(int client_fd) {
     } else {
         send_response(client_fd, 404, "Not Found", "text/plain", "Not found");
     }
-
-    close(client_fd);
 }
 
-// Thread worker
+// Thread worker - handles keep-alive connections
 static void* client_thread(void* arg) {
     int client_fd = *(int*)arg;
     free(arg);
-    handle_request(client_fd);
+
+    char buf[BUFFER_SIZE];
+    int buf_len = 0;
+
+    while (1) {
+        ssize_t n = recv(client_fd, buf + buf_len, BUFFER_SIZE - buf_len - 1, 0);
+        if (n <= 0) break;
+        buf_len += n;
+        buf[buf_len] = '\0';
+
+        // Process all complete requests in the buffer
+        while (1) {
+            char *headers_end = strstr(buf, "\r\n\r\n");
+            if (!headers_end) break;
+
+            int headers_len = (int)(headers_end - buf) + 4;
+
+            // Parse Content-Length for body
+            int content_length = 0;
+            for (char *p = buf; p < headers_end; p++) {
+                if ((*p == 'C' || *p == 'c') &&
+                    strncasecmp(p, "Content-Length:", 15) == 0) {
+                    content_length = atoi(p + 15);
+                    break;
+                }
+            }
+
+            int total_len = headers_len + content_length;
+            if (buf_len < total_len) break;
+
+            // Parse method and path
+            char method[16] = {0}, path[256] = {0};
+            sscanf(buf, "%15s %255s", method, path);
+
+            route_request(client_fd, method, path);
+
+            // Shift remaining data in buffer
+            int remaining = buf_len - total_len;
+            if (remaining > 0) {
+                memmove(buf, buf + total_len, remaining);
+            }
+            buf_len = remaining;
+            buf[buf_len] = '\0';
+        }
+
+        // Buffer full with no complete request - bad connection
+        if (buf_len >= BUFFER_SIZE - 1) break;
+    }
+
+    close(client_fd);
     return NULL;
 }
 
-int main() {
+int main(void) {
     int server_fd;
     struct sockaddr_in address;
     int opt = 1;
 
-    // Ignore SIGPIPE
     signal(SIGPIPE, SIG_IGN);
 
-    // Initialize items
-    memset(items, 0, sizeof(items));
-
-    // Create socket
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         perror("socket failed");
         exit(1);
     }
 
-    // Set socket options
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    // Bind
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
@@ -274,7 +307,6 @@ int main() {
         exit(1);
     }
 
-    // Listen
     if (listen(server_fd, 1024) < 0) {
         perror("listen failed");
         exit(1);
@@ -283,7 +315,6 @@ int main() {
     printf("C Server listening on port %d\n", PORT);
     fflush(stdout);
 
-    // Accept loop
     while (1) {
         int* client_fd = malloc(sizeof(int));
         if (!client_fd) continue;
@@ -294,6 +325,9 @@ int main() {
             free(client_fd);
             continue;
         }
+
+        // Set TCP_NODELAY on client socket for lower latency
+        setsockopt(*client_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 
         pthread_t tid;
         pthread_attr_t attr;

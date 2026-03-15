@@ -45,7 +45,7 @@ struct HttpRequest =>
     # ==========================================================================
 
     static fn parse(data: str): HttpRequest =>
-        var req: HttpRequest = HttpRequest { method: "", path: "", query: "", version: "", headers: {}, body: "", raw: data }
+        var req: HttpRequest = HttpRequest { method: "", path: "", query: "", version: "", headers: {}, body: "", raw: copyOf(data) }
 
         var normalized: str = data.replace("\r\n", "\n")
         var lines: str[] = normalized.split("\n")
@@ -86,7 +86,7 @@ struct HttpRequest =>
             if colonIndex > 0 =>
                 var name: str = line.substring(0, colonIndex).trim()
                 var value: str = line.substring(colonIndex + 1, line.length).trim()
-                req.headers.push(Header { name: name, value: value })
+                req.headers.push(Header { name: copyOf(name), value: copyOf(value) })
 
         if headersDone && bodyStartIndex < lines.length =>
             var bodyLines: str[] = {}

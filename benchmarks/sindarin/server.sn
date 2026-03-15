@@ -113,7 +113,7 @@ fn updateItem(req: HttpRequest): HttpResponse =>
 
             # Remove old item and insert updated one
             items.removeAt(index)
-            items.insert(index, body)
+            items.insertAt(index, body)
             resp = HttpResponse.ok().jsonPretty(body)
             # body disposed when local arena is cleaned up
 
@@ -152,9 +152,6 @@ fn handleItem(req: HttpRequest): HttpResponse =>
 fn main(): void =>
     # Initialize items storage
     items = Json.array()
-
-    # Enable GC logging for memory diagnostics
-    GC.enableLog()
 
     # Create router
     var router: Router = Router.new()

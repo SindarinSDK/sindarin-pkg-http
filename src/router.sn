@@ -47,7 +47,7 @@ struct Router =>
     fn route(method: str, path: str, handler: fn(HttpRequest): HttpResponse): Router =>
         self.routes.push(Route {
             method: method.toUpper(),
-            pattern: path,
+            pattern: copyOf(path),
             handler: handler
         })
         return self

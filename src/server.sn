@@ -18,7 +18,6 @@
 # ==============================================================================
 
 import "../.sn/sindarin-pkg-sdk/src/net/tcp"
-import "../.sn/sindarin-pkg-sdk/src/core/gc"
 import "request"
 import "response"
 import "router"
@@ -118,7 +117,7 @@ struct HttpServer =>
             activeConnections++
             &self.handleClient(client)
 
-        listener.close()
+        listener.dispose()
 
     # Start on configured port
     fn start(): void =>
@@ -163,9 +162,8 @@ struct HttpServer =>
             var responseBytes: byte[] = response.toBytes()
             client.write(responseBytes)
             
-            GC.collect()
 
-        client.close()
+        client.dispose()
         activeConnections--
 
     # Read HTTP request from client

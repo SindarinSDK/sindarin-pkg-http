@@ -79,13 +79,13 @@ struct HttpResponse =>
         var newHeaders: ResponseHeader[] = {}
         for h in self.headers =>
             if h.name.toLower() != lowerName =>
-                newHeaders.push(h)
-        newHeaders.push(ResponseHeader { name: name, value: value })
-        self.headers = newHeaders
+                newHeaders.push(ResponseHeader { name: copyOf(h.name), value: copyOf(h.value) })
+        newHeaders.push(ResponseHeader { name: copyOf(name), value: copyOf(value) })
+        self.headers = copyOf(newHeaders)
         return self
 
     fn addHeader(name: str, value: str): HttpResponse =>
-        self.headers.push(ResponseHeader { name: name, value: value })
+        self.headers.push(ResponseHeader { name: copyOf(name), value: copyOf(value) })
         return self
 
     fn setBody(content: str): HttpResponse =>

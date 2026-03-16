@@ -411,7 +411,7 @@ EOF
                 bar_len=$((int_val * bar_width / max_val))
             fi
             [ "$bar_len" -lt 1 ] && [ "$int_val" -gt 0 ] 2>/dev/null && bar_len=1
-            local bar=$(printf '%*s' "$bar_len" '' | tr ' ' '█')
+            local bar=$(printf '%*s' "$bar_len" '' | tr ' ' '#')
             local pad_label=$(printf "%-${max_label}s" "$label")
             if [ "$suffix" = "KB" ]; then
                 # Format memory as MB

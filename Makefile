@@ -391,10 +391,10 @@ benchmark-sindarin: benchmark-prereqs | $(BIN_DIR)
 	rm -rf "$$TMPDIR"
 
 #------------------------------------------------------------------------------
-# benchmark-sindarin-profile - CPU profile with gperftools + flame graph
+# benchmark-sindarin-profile - CPU profile with callgrind + flame graph
 #------------------------------------------------------------------------------
 FLAMEGRAPH_DIR := /tmp/FlameGraph
-LIBPROFILER := $(shell ldconfig -p 2>/dev/null | grep libprofiler.so$$ | awk '{print $$NF}' | head -1)
+PROFILE_REQUESTS := 200
 
 benchmark-sindarin-profile: benchmark-prereqs | $(BIN_DIR)
 	@echo "Compiling Sindarin benchmark server (profile mode)..."
@@ -403,28 +403,25 @@ benchmark-sindarin-profile: benchmark-prereqs | $(BIN_DIR)
 		echo "Cloning FlameGraph tools..."; \
 		git clone --depth 1 https://github.com/brendangregg/FlameGraph.git $(FLAMEGRAPH_DIR) 2>&1 | tail -1; \
 	fi
-	@if [ -z "$(LIBPROFILER)" ]; then \
-		echo "ERROR: libprofiler.so not found. Install gperftools:"; \
-		echo "  sudo apt-get install google-perftools libgoogle-perftools-dev"; \
-		exit 1; \
-	fi
+	@which valgrind > /dev/null 2>&1 || (echo "ERROR: valgrind not found. Install with: sudo apt install valgrind" && exit 1)
 	@. $(BENCHMARK_DIR)/config.sh; \
 	RESULTS_DIR=$(BENCHMARK_DIR)/results/profile-$$(date +%Y%m%d-%H%M%S); \
 	mkdir -p "$$RESULTS_DIR"; \
 	echo "Results will be saved to $$RESULTS_DIR"; \
-	echo "Profiler: gperftools ($(LIBPROFILER))"; \
+	echo "Profiler: callgrind (valgrind)"; \
+	echo "Requests: $(PROFILE_REQUESTS) GET + $(PROFILE_REQUESTS) POST"; \
 	echo ""; \
-	echo "Starting Sindarin server (profile mode)..."; \
-	CPUPROFILE="$$RESULTS_DIR/cpu.prof" CPUPROFILE_FREQUENCY=997 \
-		LD_PRELOAD="$(LIBPROFILER)" \
+	echo "Starting Sindarin server under callgrind (slow startup expected)..."; \
+	valgrind --tool=callgrind --callgrind-out-file="$$RESULTS_DIR/callgrind.out" \
 		./$(BENCHMARK_SINDARIN_PROFILE_BIN) > "$$RESULTS_DIR/server.log" 2>&1 & \
 	SERVER_PID=$$!; \
 	ATTEMPT=0; \
-	while ! curl -s "http://localhost:$$BENCHMARK_PORT/items" > /dev/null 2>&1; do \
-		sleep 0.5; \
+	while ! curl -s "http://localhost:$$BENCHMARK_PORT/items/1" > /dev/null 2>&1; do \
+		sleep 1; \
 		ATTEMPT=$$((ATTEMPT + 1)); \
-		if [ $$ATTEMPT -ge 60 ]; then \
-			echo "ERROR: Server failed to start within 30 seconds"; \
+		if [ $$((ATTEMPT % 15)) -eq 0 ]; then echo "  Waiting for server... ($${ATTEMPT}s)"; fi; \
+		if [ $$ATTEMPT -ge 180 ]; then \
+			echo "ERROR: Server failed to start within 3 minutes"; \
 			cat "$$RESULTS_DIR/server.log" 2>/dev/null; \
 			kill $$SERVER_PID 2>/dev/null; \
 			exit 1; \
@@ -432,74 +429,71 @@ benchmark-sindarin-profile: benchmark-prereqs | $(BIN_DIR)
 	done && \
 	echo "Server ready on port $$BENCHMARK_PORT (PID $$SERVER_PID)" && \
 	echo "" && \
-	echo "Running benchmark ($$WRK_DURATION)..." && \
-	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
-		--latency "http://localhost:$$BENCHMARK_PORT/items" \
-		> "$$RESULTS_DIR/wrk_get.txt" 2>&1 & \
-	GET_PID=$$!; \
-	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
-		--latency -s $(BENCHMARK_DIR)/wrk/post_item.lua \
-		"http://localhost:$$BENCHMARK_PORT/items" \
-		> "$$RESULTS_DIR/wrk_post.txt" 2>&1 & \
-	POST_PID=$$!; \
-	wrk -t$$WRK_THREADS -c$$WRK_CONNECTIONS -d$$WRK_DURATION \
-		--latency -s $(BENCHMARK_DIR)/wrk/delete_item.lua \
-		"http://localhost:$$BENCHMARK_PORT/items" \
-		> "$$RESULTS_DIR/wrk_delete.txt" 2>&1 & \
-	DELETE_PID=$$!; \
-	wait $$GET_PID; \
-	wait $$POST_PID; \
-	wait $$DELETE_PID; \
-	echo "Benchmark complete, stopping server..." && \
+	echo "Sending $(PROFILE_REQUESTS) GET /items requests..." && \
+	for i in $$(seq 1 $(PROFILE_REQUESTS)); do \
+		curl -s "http://localhost:$$BENCHMARK_PORT/items" > /dev/null 2>&1; \
+	done && \
+	echo "Sending $(PROFILE_REQUESTS) POST /items requests..." && \
+	for i in $$(seq 1 $(PROFILE_REQUESTS)); do \
+		curl -s -X POST -H "Content-Type: application/json" \
+			-d "{\"name\":\"bench\",\"value\":$$i}" \
+			"http://localhost:$$BENCHMARK_PORT/items" > /dev/null 2>&1; \
+	done && \
+	echo "Sending $(PROFILE_REQUESTS) GET /items/{id} requests..." && \
+	for i in $$(seq 1 $(PROFILE_REQUESTS)); do \
+		curl -s "http://localhost:$$BENCHMARK_PORT/items/$$((i % 1000 + 1))" > /dev/null 2>&1; \
+	done && \
+	echo "Requests complete, stopping server..." && \
 	kill -TERM $$SERVER_PID 2>/dev/null; \
-	sleep 2; \
+	sleep 3; \
 	kill -0 $$SERVER_PID 2>/dev/null && kill -9 $$SERVER_PID 2>/dev/null || true; \
 	fuser -k $$BENCHMARK_PORT/tcp 2>/dev/null || true; \
 	sleep 1; \
 	echo "" && \
 	echo "Generating profile reports..." && \
-	google-pprof --text ./$(BENCHMARK_SINDARIN_PROFILE_BIN) "$$RESULTS_DIR/cpu.prof" \
-		> "$$RESULTS_DIR/profile-flat.txt" 2>/dev/null && \
-	google-pprof --callgrind ./$(BENCHMARK_SINDARIN_PROFILE_BIN) "$$RESULTS_DIR/cpu.prof" \
-		> "$$RESULTS_DIR/profile-callgrind.txt" 2>/dev/null && \
-	google-pprof --collapsed ./$(BENCHMARK_SINDARIN_PROFILE_BIN) "$$RESULTS_DIR/cpu.prof" 2>/dev/null \
-		| $(FLAMEGRAPH_DIR)/flamegraph.pl --title "Sindarin HTTP Server Profile" \
-		> "$$RESULTS_DIR/flamegraph.svg" 2>/dev/null; \
-	GET_RPS=$$(grep "Requests/sec" "$$RESULTS_DIR/wrk_get.txt" 2>/dev/null | awk '{print $$2}'); \
-	POST_RPS=$$(grep "Requests/sec" "$$RESULTS_DIR/wrk_post.txt" 2>/dev/null | awk '{print $$2}'); \
-	DELETE_RPS=$$(grep "Requests/sec" "$$RESULTS_DIR/wrk_delete.txt" 2>/dev/null | awk '{print $$2}'); \
-	AVG_LAT=$$(grep "Latency" "$$RESULTS_DIR/wrk_get.txt" 2>/dev/null | head -1 | awk '{print $$2}'); \
-	P99_LAT=$$(grep "99%" "$$RESULTS_DIR/wrk_get.txt" 2>/dev/null | awk '{print $$2}'); \
+	callgrind_annotate --auto=yes --inclusive=no "$$RESULTS_DIR/callgrind.out" \
+		> "$$RESULTS_DIR/profile-flat.txt" 2>/dev/null; \
+	callgrind_annotate --auto=yes --inclusive=yes "$$RESULTS_DIR/callgrind.out" \
+		> "$$RESULTS_DIR/profile-inclusive.txt" 2>/dev/null; \
+	if [ -f "$(FLAMEGRAPH_DIR)/flamegraph.pl" ]; then \
+		python3 -c " \
+import sys; \
+lines = open('$$RESULTS_DIR/callgrind.out').readlines(); \
+stacks = {}; cur = []; cost = 0; \
+for l in lines: \
+    l = l.strip(); \
+    if l.startswith('fn='): cur = [l[3:]]; \
+    elif l.startswith('cfn='): cur.append(l[4:]); \
+    elif l and l[0].isdigit() and ' ' in l: \
+        parts = l.split(); \
+        if len(parts) >= 2: cost = int(parts[-1]); \
+        if cur: \
+            k = ';'.join(cur); stacks[k] = stacks.get(k, 0) + cost; \
+for k, v in sorted(stacks.items(), key=lambda x: -x[1])[:200]: print(f'{k} {v}') \
+" > "$$RESULTS_DIR/collapsed.txt" 2>/dev/null; \
+		$(FLAMEGRAPH_DIR)/flamegraph.pl --title "Sindarin HTTP Server Profile" \
+			< "$$RESULTS_DIR/collapsed.txt" \
+			> "$$RESULTS_DIR/flamegraph.svg" 2>/dev/null; \
+	fi; \
 	echo ""; \
 	echo "========================================="; \
 	echo " Sindarin HTTP Profile Results"; \
 	echo "========================================="; \
 	echo ""; \
-	printf "  %-16s %s\n" "Threads:" "$$WRK_THREADS"; \
-	printf "  %-16s %s\n" "Connections:" "$$WRK_CONNECTIONS"; \
-	printf "  %-16s %s\n" "Duration:" "$$WRK_DURATION"; \
-	printf "  %-16s %s\n" "Mode:" "interleaved GET+POST+DELETE"; \
-	printf "  %-16s %s\n" "Profiler:" "gperftools (LD_PRELOAD)"; \
+	printf "  %-16s %s\n" "Profiler:" "callgrind (valgrind)"; \
 	printf "  %-16s %s\n" "Build:" "profile (-O2, frame pointers, no ASAN)"; \
+	printf "  %-16s %s\n" "Requests:" "$(PROFILE_REQUESTS) GET + $(PROFILE_REQUESTS) POST + $(PROFILE_REQUESTS) GET/{id}"; \
 	echo ""; \
-	echo "  Throughput"; \
+	echo "  Top 30 Functions (instruction count)"; \
 	echo "  -----------------------------------------"; \
-	printf "  %-16s %s req/s\n" "GET  /items" "$${GET_RPS:-N/A}"; \
-	printf "  %-16s %s req/s\n" "POST /items" "$${POST_RPS:-N/A}"; \
-	printf "  %-16s %s req/s\n" "DELETE /items" "$${DELETE_RPS:-N/A}"; \
-	echo ""; \
-	echo "  Latency (GET)"; \
-	echo "  -----------------------------------------"; \
-	printf "  %-16s %s\n" "Average:" "$${AVG_LAT:-N/A}"; \
-	printf "  %-16s %s\n" "P99:" "$${P99_LAT:-N/A}"; \
-	echo ""; \
-	echo "  Top 20 Functions (CPU %)"; \
-	echo "  -----------------------------------------"; \
-	head -25 "$$RESULTS_DIR/profile-flat.txt" 2>/dev/null; \
+	head -50 "$$RESULTS_DIR/profile-flat.txt" 2>/dev/null; \
 	echo ""; \
 	echo "  Output Files"; \
 	echo "  -----------------------------------------"; \
-	echo "  $$RESULTS_DIR/profile-flat.txt"; \
-	echo "  $$RESULTS_DIR/profile-callgrind.txt"; \
-	echo "  $$RESULTS_DIR/flamegraph.svg"; \
+	echo "  $$RESULTS_DIR/profile-flat.txt      (self cost)"; \
+	echo "  $$RESULTS_DIR/profile-inclusive.txt  (inclusive cost)"; \
+	if [ -f "$$RESULTS_DIR/flamegraph.svg" ]; then \
+		echo "  $$RESULTS_DIR/flamegraph.svg        (flame graph)"; \
+	fi; \
+	echo "  $$RESULTS_DIR/callgrind.out         (raw data, use kcachegrind to explore)"; \
 	echo ""

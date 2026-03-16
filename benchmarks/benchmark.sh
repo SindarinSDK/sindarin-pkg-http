@@ -362,6 +362,74 @@ EOF
         fi
     done
 
+    # Build arrays of lang:value pairs for charting
+    local get_data="" post_data="" delete_data="" mem_data=""
+    for lang in "${LANGUAGES[@]}"; do
+        if [ -f "$RESULTS_DIR/${lang}_get_items.txt" ]; then
+            local g=$(parse_wrk_rps "$RESULTS_DIR/${lang}_get_items.txt")
+            local p=$(parse_wrk_rps "$RESULTS_DIR/${lang}_post_items.txt")
+            local d=$(parse_wrk_rps "$RESULTS_DIR/${lang}_delete_items.txt")
+            local m=$(parse_time_memory "$RESULTS_DIR/${lang}_time.txt")
+            [ "$g" != "N/A" ] && get_data="$get_data $lang:$g"
+            [ "$p" != "N/A" ] && post_data="$post_data $lang:$p"
+            [ "$d" != "N/A" ] && delete_data="$delete_data $lang:$d"
+            [ "$m" != "N/A" ] && mem_data="$mem_data $lang:$m"
+        fi
+    done
+
+    # Generate ASCII bar chart: args = title, data pairs, sort direction (desc/asc), suffix
+    generate_chart() {
+        local title=$1 data=$2 sort_dir=$3 suffix=$4
+        local bar_width=40
+
+        echo "" >> "$REPORT_FILE"
+        echo "## $title" >> "$REPORT_FILE"
+        echo "" >> "$REPORT_FILE"
+        echo '```' >> "$REPORT_FILE"
+
+        # Sort data
+        local sorted
+        if [ "$sort_dir" = "desc" ]; then
+            sorted=$(echo "$data" | tr ' ' '\n' | grep ':' | sort -t: -k2 -rn)
+        else
+            sorted=$(echo "$data" | tr ' ' '\n' | grep ':' | sort -t: -k2 -n)
+        fi
+
+        # Find max value and max label width
+        local max_val=0 max_label=0
+        while IFS=: read -r label val; do
+            local int_val=${val%%.*}
+            [ "$int_val" -gt "$max_val" ] 2>/dev/null && max_val=$int_val
+            [ ${#label} -gt $max_label ] && max_label=${#label}
+        done <<< "$sorted"
+
+        # Draw bars
+        while IFS=: read -r label val; do
+            local int_val=${val%%.*}
+            local bar_len=0
+            if [ "$max_val" -gt 0 ] 2>/dev/null; then
+                bar_len=$((int_val * bar_width / max_val))
+            fi
+            [ "$bar_len" -lt 1 ] && [ "$int_val" -gt 0 ] 2>/dev/null && bar_len=1
+            local bar=$(printf '%*s' "$bar_len" '' | tr ' ' '█')
+            local pad_label=$(printf "%-${max_label}s" "$label")
+            if [ "$suffix" = "KB" ]; then
+                # Format memory as MB
+                local mb=$(echo "scale=1; $int_val / 1024" | bc 2>/dev/null || echo "$int_val")
+                printf "  %s  %s %s MB\n" "$pad_label" "$bar" "$mb" >> "$REPORT_FILE"
+            else
+                printf "  %s  %s %s %s\n" "$pad_label" "$bar" "$val" "$suffix" >> "$REPORT_FILE"
+            fi
+        done <<< "$sorted"
+
+        echo '```' >> "$REPORT_FILE"
+    }
+
+    generate_chart "GET /items (req/s)" "$get_data" "desc" "req/s"
+    generate_chart "POST /items (req/s)" "$post_data" "desc" "req/s"
+    generate_chart "DELETE /items (req/s)" "$delete_data" "desc" "req/s"
+    generate_chart "Peak Memory" "$mem_data" "asc" "KB"
+
     cat >> "$REPORT_FILE" << 'EOF'
 
 ## Notes

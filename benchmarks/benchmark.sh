@@ -17,7 +17,7 @@ WRK_CONNECTIONS=${WRK_CONNECTIONS:-100}
 WRK_DURATION=${WRK_DURATION:-30s}
 WARMUP_DURATION=${WARMUP_DURATION:-5s}
 RESULTS_DIR="$SCRIPT_DIR/results"
-REPORT_FILE="$SCRIPT_DIR/BENCHMARKS.md"
+REPORT_FILE="$SCRIPT_DIR/README.md"
 
 # Languages to benchmark (in order)
 LANGUAGES=("sindarin" "c" "rust" "go" "java" "csharp" "python" "nodejs")
@@ -123,10 +123,10 @@ build_go() {
 
 build_java() {
     log "Building Java server..."
-    if command -v javac &> /dev/null; then
-        (cd "$SCRIPT_DIR/java" && javac -d out src/main/java/benchmark/Server.java)
+    if command -v mvn &> /dev/null; then
+        (cd "$SCRIPT_DIR/java" && mvn package -q -DskipTests 2>&1 | tail -5)
     else
-        log "WARNING: javac not found, skipping Java"
+        log "WARNING: mvn not found, skipping Java"
         return 1
     fi
 }
@@ -142,10 +142,19 @@ build_csharp() {
 }
 
 build_python() {
-    log "Python server (no build needed)"
+    log "Setting up Python server..."
     if ! command -v python3 &> /dev/null; then
         log "WARNING: python3 not found, skipping Python"
         return 1
+    fi
+    # Create venv and install dependencies if needed
+    if [ ! -d "$SCRIPT_DIR/python/.venv" ]; then
+        log "Creating Python venv..."
+        python3 -m venv "$SCRIPT_DIR/python/.venv"
+    fi
+    if ! "$SCRIPT_DIR/python/.venv/bin/python" -c "import uvicorn, starlette" 2>/dev/null; then
+        log "Installing Python dependencies..."
+        "$SCRIPT_DIR/python/.venv/bin/pip" install -q -r "$SCRIPT_DIR/python/requirements.txt"
     fi
 }
 
@@ -187,7 +196,7 @@ run_go() {
 
 run_java() {
     /usr/bin/time -v -o "$RESULTS_DIR/java_time.txt" \
-        java -cp "$SCRIPT_DIR/java/out" benchmark.Server > "$RESULTS_DIR/java_server.log" 2>&1 &
+        java -jar "$SCRIPT_DIR/java/target/benchmark-java-1.0.jar" > "$RESULTS_DIR/java_server.log" 2>&1 &
     echo $!
 }
 
@@ -199,7 +208,7 @@ run_csharp() {
 
 run_python() {
     /usr/bin/time -v -o "$RESULTS_DIR/python_time.txt" \
-        python3 "$SCRIPT_DIR/python/server.py" > "$RESULTS_DIR/python_server.log" 2>&1 &
+        "$SCRIPT_DIR/python/.venv/bin/python" "$SCRIPT_DIR/python/server.py" > "$RESULTS_DIR/python_server.log" 2>&1 &
     echo $!
 }
 
@@ -319,6 +328,19 @@ Generated: $date_str
 | Connections | $WRK_CONNECTIONS |
 | Warmup | $WARMUP_DURATION |
 | Port | $PORT |
+
+## Server Frameworks
+
+| Language | Framework |
+|----------|-----------|
+| Sindarin | sindarin-pkg-http |
+| C | Raw sockets + pthreads |
+| Rust | actix-web |
+| Go | net/http (stdlib) |
+| Java | Javalin (Jetty) |
+| C# | ASP.NET Core (Kestrel) |
+| Python | uvicorn + starlette |
+| Node.js | http (stdlib) |
 
 ## Results Summary
 

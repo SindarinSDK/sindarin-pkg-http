@@ -174,10 +174,9 @@ benchmark-build: benchmark-prereqs $(BENCHMARK_SINDARIN_BIN)
 		echo "Building Go server..."; \
 		(cd $(BENCHMARK_DIR)/go && go build -o server .); \
 	fi
-	@if [ -d "$(BENCHMARK_DIR)/java" ] && command -v javac > /dev/null 2>&1; then \
+	@if [ -d "$(BENCHMARK_DIR)/java" ] && command -v mvn > /dev/null 2>&1; then \
 		echo "Building Java server..."; \
-		mkdir -p $(BENCHMARK_DIR)/java/out; \
-		javac -d $(BENCHMARK_DIR)/java/out $(BENCHMARK_DIR)/java/src/main/java/benchmark/Server.java; \
+		(cd $(BENCHMARK_DIR)/java && mvn package -q -DskipTests 2>&1 | tail -3); \
 	fi
 	@if [ -d "$(BENCHMARK_DIR)/csharp" ] && command -v dotnet > /dev/null 2>&1; then \
 		echo "Building C# server..."; \
@@ -191,7 +190,7 @@ benchmark: benchmark-build
 	@chmod +x $(BENCHMARK_SCRIPT)
 	@$(BENCHMARK_SCRIPT)
 	@echo ""
-	@echo "Benchmark complete. Results in $(BENCHMARK_DIR)/BENCHMARKS.md"
+	@echo "Benchmark complete. Results in $(BENCHMARK_DIR)/README.md"
 
 # Clean benchmark artifacts
 benchmark-clean:
@@ -201,7 +200,7 @@ benchmark-clean:
 	@if [ -d "$(BENCHMARK_DIR)/c" ]; then (cd $(BENCHMARK_DIR)/c && make clean 2>/dev/null || true); fi
 	@if [ -d "$(BENCHMARK_DIR)/rust" ]; then (cd $(BENCHMARK_DIR)/rust && cargo clean 2>/dev/null || true); fi
 	@if [ -d "$(BENCHMARK_DIR)/go" ]; then rm -f $(BENCHMARK_DIR)/go/server; fi
-	@if [ -d "$(BENCHMARK_DIR)/java" ]; then rm -rf $(BENCHMARK_DIR)/java/out; fi
+	@if [ -d "$(BENCHMARK_DIR)/java" ]; then rm -rf $(BENCHMARK_DIR)/java/out $(BENCHMARK_DIR)/java/target; fi
 	@if [ -d "$(BENCHMARK_DIR)/csharp" ]; then rm -rf $(BENCHMARK_DIR)/csharp/out $(BENCHMARK_DIR)/csharp/bin $(BENCHMARK_DIR)/csharp/obj; fi
 	@echo "Benchmark clean complete."
 

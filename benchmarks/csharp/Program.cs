@@ -1,236 +1,126 @@
 using System.Collections.Concurrent;
-using System.Net;
-using System.Text;
 using System.Text.Json;
 
-class Server
+var items = new ConcurrentDictionary<int, Dictionary<string, JsonElement>>();
+var idLock = new object();
+var nextId = 1;
+
+// Pre-populate 1000 items
+for (int i = 1; i <= 1000; i++)
 {
-    private static readonly ConcurrentDictionary<int, Dictionary<string, JsonElement>> Items = new();
-    private static int _nextId = 1;
-    private static readonly object IdLock = new();
-
-    static async Task Main()
+    var item = new Dictionary<string, JsonElement>
     {
-        // Pre-populate 1000 items
-        for (int i = 1; i <= 1000; i++)
-        {
-            var item = new Dictionary<string, JsonElement>
-            {
-                ["name"] = JsonSerializer.SerializeToElement($"Item {i}"),
-                ["value"] = JsonSerializer.SerializeToElement(i)
-            };
-            Items[i] = item;
-        }
-
-        var listener = new HttpListener();
-        listener.Prefixes.Add("http://localhost:8081/");
-        listener.Start();
-
-        Console.WriteLine("C# Server listening on port 8081");
-
-        while (true)
-        {
-            var context = await listener.GetContextAsync();
-            _ = Task.Run(() => HandleRequest(context));
-        }
-    }
-
-    static async Task HandleRequest(HttpListenerContext context)
-    {
-        var request = context.Request;
-        var response = context.Response;
-
-        try
-        {
-            var path = request.Url?.AbsolutePath ?? "/";
-            var method = request.HttpMethod;
-
-            response.ContentType = "application/json";
-
-            if (path == "/items")
-            {
-                await HandleItems(request, response, method);
-            }
-            else if (path.StartsWith("/items/"))
-            {
-                var idStr = path["/items/".Length..];
-                if (int.TryParse(idStr, out var id) && id > 0)
-                {
-                    await HandleItem(request, response, method, id);
-                }
-                else
-                {
-                    await SendResponse(response, 400, "{\"error\":\"Invalid ID\"}");
-                }
-            }
-            else
-            {
-                response.ContentType = "text/plain";
-                await SendResponse(response, 404, "Not found");
-            }
-        }
-        catch
-        {
-            await SendResponse(response, 500, "{\"error\":\"Internal error\"}");
-        }
-        finally
-        {
-            response.Close();
-        }
-    }
-
-    static async Task HandleItems(HttpListenerRequest request, HttpListenerResponse response, string method)
-    {
-        switch (method)
-        {
-            case "GET":
-                await ListItems(response);
-                break;
-            case "POST":
-                await CreateItem(request, response);
-                break;
-            default:
-                response.ContentType = "text/plain";
-                await SendResponse(response, 405, "Method not allowed");
-                break;
-        }
-    }
-
-    static async Task HandleItem(HttpListenerRequest request, HttpListenerResponse response, string method, int id)
-    {
-        switch (method)
-        {
-            case "GET":
-                await GetItem(response, id);
-                break;
-            case "PUT":
-                await UpdateItem(request, response, id);
-                break;
-            case "DELETE":
-                await DeleteItem(response, id);
-                break;
-            default:
-                response.ContentType = "text/plain";
-                await SendResponse(response, 405, "Method not allowed");
-                break;
-        }
-    }
-
-    static async Task ListItems(HttpListenerResponse response)
-    {
-        var list = Items.Select(kvp =>
-        {
-            var dict = new Dictionary<string, JsonElement>(kvp.Value)
-            {
-                ["id"] = JsonSerializer.SerializeToElement(kvp.Key)
-            };
-            return dict;
-        }).ToList();
-
-        var json = JsonSerializer.Serialize(list);
-        await SendResponse(response, 200, json);
-    }
-
-    static async Task CreateItem(HttpListenerRequest request, HttpListenerResponse response)
-    {
-        var contentType = request.ContentType ?? "";
-        if (!contentType.Contains("application/json"))
-        {
-            await SendResponse(response, 400, "{\"error\":\"Content-Type must be application/json\"}");
-            return;
-        }
-
-        using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
-        var body = await reader.ReadToEndAsync();
-
-        Dictionary<string, JsonElement> data;
-        try
-        {
-            data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(body)
-                   ?? new Dictionary<string, JsonElement>();
-        }
-        catch
-        {
-            data = new Dictionary<string, JsonElement>();
-        }
-
-        int id;
-        lock (IdLock)
-        {
-            id = ((_nextId - 1) % 1000) + 1;
-            _nextId++;
-        }
-
-        Items[id] = data;
-
-        var result = new Dictionary<string, JsonElement>(data)
-        {
-            ["id"] = JsonSerializer.SerializeToElement(id)
-        };
-
-        await SendResponse(response, 200, JsonSerializer.Serialize(result));
-    }
-
-    static async Task GetItem(HttpListenerResponse response, int id)
-    {
-        if (!Items.TryGetValue(id, out var data))
-        {
-            await SendResponse(response, 200, $"{{\"id\":{id},\"name\":\"\",\"value\":0}}");
-            return;
-        }
-
-        var result = new Dictionary<string, JsonElement>(data)
-        {
-            ["id"] = JsonSerializer.SerializeToElement(id)
-        };
-
-        await SendResponse(response, 200, JsonSerializer.Serialize(result));
-    }
-
-    static async Task UpdateItem(HttpListenerRequest request, HttpListenerResponse response, int id)
-    {
-        var contentType = request.ContentType ?? "";
-        if (!contentType.Contains("application/json"))
-        {
-            await SendResponse(response, 400, "{\"error\":\"Content-Type must be application/json\"}");
-            return;
-        }
-
-        using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
-        var body = await reader.ReadToEndAsync();
-
-        Dictionary<string, JsonElement> data;
-        try
-        {
-            data = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(body)
-                   ?? new Dictionary<string, JsonElement>();
-        }
-        catch
-        {
-            data = new Dictionary<string, JsonElement>();
-        }
-
-        Items[id] = data;
-
-        var result = new Dictionary<string, JsonElement>(data)
-        {
-            ["id"] = JsonSerializer.SerializeToElement(id)
-        };
-
-        await SendResponse(response, 200, JsonSerializer.Serialize(result));
-    }
-
-    static async Task DeleteItem(HttpListenerResponse response, int id)
-    {
-        Items.TryRemove(id, out _);
-        await SendResponse(response, 200, "{\"deleted\":true}");
-    }
-
-    static async Task SendResponse(HttpListenerResponse response, int status, string body)
-    {
-        response.StatusCode = status;
-        var bytes = Encoding.UTF8.GetBytes(body);
-        response.ContentLength64 = bytes.Length;
-        await response.OutputStream.WriteAsync(bytes);
-    }
+        ["name"] = JsonSerializer.SerializeToElement($"Item {i}"),
+        ["value"] = JsonSerializer.SerializeToElement(i)
+    };
+    items[i] = item;
 }
+
+var builder = WebApplication.CreateSlimBuilder(args);
+builder.WebHost.UseUrls("http://0.0.0.0:8081");
+builder.Logging.ClearProviders();
+var app = builder.Build();
+
+// GET /items - list all
+app.MapGet("/items", () =>
+{
+    var list = items.Select(kvp =>
+    {
+        var dict = new Dictionary<string, JsonElement>(kvp.Value)
+        {
+            ["id"] = JsonSerializer.SerializeToElement(kvp.Key)
+        };
+        return dict;
+    }).ToList();
+
+    return Results.Json(list);
+});
+
+// POST /items - create
+app.MapPost("/items", async (HttpRequest request) =>
+{
+    var contentType = request.ContentType ?? "";
+    if (!contentType.Contains("application/json"))
+        return Results.Json(new { error = "Content-Type must be application/json" }, statusCode: 400);
+
+    Dictionary<string, JsonElement> data;
+    try
+    {
+        data = await request.ReadFromJsonAsync<Dictionary<string, JsonElement>>()
+               ?? new Dictionary<string, JsonElement>();
+    }
+    catch
+    {
+        data = new Dictionary<string, JsonElement>();
+    }
+
+    int id;
+    lock (idLock)
+    {
+        id = ((nextId - 1) % 1000) + 1;
+        nextId++;
+    }
+
+    items[id] = data;
+
+    var result = new Dictionary<string, JsonElement>(data)
+    {
+        ["id"] = JsonSerializer.SerializeToElement(id)
+    };
+
+    return Results.Json(result);
+});
+
+// GET /items/{id}
+app.MapGet("/items/{id:int}", (int id) =>
+{
+    if (!items.TryGetValue(id, out var data))
+    {
+        return Results.Json(new { id, name = "", value = 0 });
+    }
+
+    var result = new Dictionary<string, JsonElement>(data)
+    {
+        ["id"] = JsonSerializer.SerializeToElement(id)
+    };
+
+    return Results.Json(result);
+});
+
+// PUT /items/{id}
+app.MapPut("/items/{id:int}", async (int id, HttpRequest request) =>
+{
+    var contentType = request.ContentType ?? "";
+    if (!contentType.Contains("application/json"))
+        return Results.Json(new { error = "Content-Type must be application/json" }, statusCode: 400);
+
+    Dictionary<string, JsonElement> data;
+    try
+    {
+        data = await request.ReadFromJsonAsync<Dictionary<string, JsonElement>>()
+               ?? new Dictionary<string, JsonElement>();
+    }
+    catch
+    {
+        data = new Dictionary<string, JsonElement>();
+    }
+
+    items[id] = data;
+
+    var result = new Dictionary<string, JsonElement>(data)
+    {
+        ["id"] = JsonSerializer.SerializeToElement(id)
+    };
+
+    return Results.Json(result);
+});
+
+// DELETE /items/{id}
+app.MapDelete("/items/{id:int}", (int id) =>
+{
+    items.TryRemove(id, out _);
+    return Results.Json(new { deleted = true });
+});
+
+Console.WriteLine("C# Server listening on port 8081");
+app.Run();

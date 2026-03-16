@@ -1,244 +1,153 @@
 package benchmark;
 
-import com.sun.net.httpserver.HttpServer;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpExchange;
+import io.javalin.Javalin;
+import io.javalin.http.Context;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 
-import java.io.*;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.concurrent.Executors;
+import java.util.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
 public class Server {
-    private static final Map<Integer, String> items = new HashMap<>();
+    private static final Map<Integer, Map<String, Object>> items = new HashMap<>();
     private static final ReadWriteLock rwLock = new ReentrantReadWriteLock();
+    private static final ObjectMapper mapper = new ObjectMapper();
     private static int counter = 0;
 
     static {
         for (int i = 1; i <= 1000; i++) {
-            items.put(i, "\"name\":\"Item " + i + "\",\"value\":" + i);
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("name", "Item " + i);
+            item.put("value", i);
+            items.put(i, item);
         }
     }
 
-    private static String buildListJson() {
-        StringBuilder sb = new StringBuilder(32768);
-        sb.append("[");
-        boolean first = true;
-        for (Map.Entry<Integer, String> entry : items.entrySet()) {
-            if (!first) sb.append(",");
-            sb.append("{\"id\":").append(entry.getKey());
-            String data = entry.getValue();
-            if (data != null && !data.isEmpty()) {
-                sb.append(",").append(data);
-            }
-            sb.append("}");
-            first = false;
-        }
-        sb.append("]");
-        return sb.toString();
-    }
+    public static void main(String[] args) {
+        Javalin app = Javalin.create(config -> {
+            config.showJavalinBanner = false;
+        }).start(8081);
 
-    public static void main(String[] args) throws IOException {
-        HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
-        server.createContext("/items", new ItemsHandler());
-        server.setExecutor(Executors.newCachedThreadPool());
         System.out.println("Java Server listening on port 8081");
-        server.start();
+
+        app.get("/items", Server::listItems);
+        app.post("/items", Server::createItem);
+        app.get("/items/{id}", Server::getItem);
+        app.put("/items/{id}", Server::updateItem);
+        app.delete("/items/{id}", Server::deleteItem);
     }
 
-    static class ItemsHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            String path = exchange.getRequestURI().getPath();
-            String method = exchange.getRequestMethod();
-
-            try {
-                if (path.equals("/items")) {
-                    handleItems(exchange, method);
-                } else if (path.startsWith("/items/")) {
-                    int id = parseId(path);
-                    if (id <= 0) {
-                        sendResponse(exchange, 400, "{\"error\":\"Invalid ID\"}");
-                    } else {
-                        handleItem(exchange, method, id);
-                    }
-                } else {
-                    sendResponse(exchange, 404, "Not found");
-                }
-            } catch (Exception e) {
-                sendResponse(exchange, 500, "{\"error\":\"Internal error\"}");
+    private static void listItems(Context ctx) {
+        List<Map<String, Object>> result;
+        rwLock.readLock().lock();
+        try {
+            result = new ArrayList<>(items.size());
+            for (Map.Entry<Integer, Map<String, Object>> entry : items.entrySet()) {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("id", entry.getKey());
+                item.putAll(entry.getValue());
+                result.add(item);
             }
+        } finally {
+            rwLock.readLock().unlock();
+        }
+        ctx.json(result);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void createItem(Context ctx) {
+        String contentType = ctx.contentType();
+        if (contentType == null || !contentType.contains("application/json")) {
+            ctx.status(400).json(Map.of("error", "Content-Type must be application/json"));
+            return;
         }
 
-        private void handleItems(HttpExchange exchange, String method) throws IOException {
-            switch (method) {
-                case "GET":
-                    listItems(exchange);
-                    break;
-                case "POST":
-                    createItem(exchange);
-                    break;
-                default:
-                    sendResponse(exchange, 405, "Method not allowed");
-            }
+        Map<String, Object> data;
+        try {
+            data = mapper.readValue(ctx.body(), LinkedHashMap.class);
+        } catch (Exception e) {
+            data = new LinkedHashMap<>();
         }
 
-        private void handleItem(HttpExchange exchange, String method, int id) throws IOException {
-            switch (method) {
-                case "GET":
-                    getItem(exchange, id);
-                    break;
-                case "PUT":
-                    updateItem(exchange, id);
-                    break;
-                case "DELETE":
-                    deleteItem(exchange, id);
-                    break;
-                default:
-                    sendResponse(exchange, 405, "Method not allowed");
-            }
+        int id;
+        rwLock.writeLock().lock();
+        try {
+            id = (counter % 1000) + 1;
+            counter++;
+            items.put(id, data);
+        } finally {
+            rwLock.writeLock().unlock();
         }
 
-        private int parseId(String path) {
-            try {
-                return Integer.parseInt(path.substring("/items/".length()));
-            } catch (NumberFormatException e) {
-                return -1;
-            }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", id);
+        result.putAll(data);
+        ctx.json(result);
+    }
+
+    private static void getItem(Context ctx) {
+        int id = Integer.parseInt(ctx.pathParam("id"));
+
+        Map<String, Object> data;
+        rwLock.readLock().lock();
+        try {
+            data = items.get(id);
+        } finally {
+            rwLock.readLock().unlock();
         }
 
-        private void listItems(HttpExchange exchange) throws IOException {
-            String body;
-            rwLock.readLock().lock();
-            try {
-                body = buildListJson();
-            } finally {
-                rwLock.readLock().unlock();
-            }
-            sendJsonResponse(exchange, 200, body);
+        if (data == null) {
+            ctx.json(Map.of("id", id, "name", "", "value", 0));
+            return;
         }
 
-        private void createItem(HttpExchange exchange) throws IOException {
-            String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
-            if (contentType == null || !contentType.contains("application/json")) {
-                sendJsonResponse(exchange, 400, "{\"error\":\"Content-Type must be application/json\"}");
-                return;
-            }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", id);
+        result.putAll(data);
+        ctx.json(result);
+    }
 
-            String body = readBody(exchange);
-            String data = extractJsonContent(body);
+    @SuppressWarnings("unchecked")
+    private static void updateItem(Context ctx) {
+        int id = Integer.parseInt(ctx.pathParam("id"));
 
-            int id;
-            rwLock.writeLock().lock();
-            try {
-                id = (counter % 1000) + 1;
-                counter++;
-                items.put(id, data);
-            } finally {
-                rwLock.writeLock().unlock();
-            }
-
-            StringBuilder response = new StringBuilder("{\"id\":").append(id);
-            if (data != null && !data.isEmpty()) {
-                response.append(",").append(data);
-            }
-            response.append("}");
-
-            sendJsonResponse(exchange, 200, response.toString());
+        String contentType = ctx.contentType();
+        if (contentType == null || !contentType.contains("application/json")) {
+            ctx.status(400).json(Map.of("error", "Content-Type must be application/json"));
+            return;
         }
 
-        private void getItem(HttpExchange exchange, int id) throws IOException {
-            String data;
-            rwLock.readLock().lock();
-            try {
-                data = items.get(id);
-            } finally {
-                rwLock.readLock().unlock();
-            }
-
-            if (data == null) {
-                sendJsonResponse(exchange, 200, "{\"id\":" + id + ",\"name\":\"\",\"value\":0}");
-                return;
-            }
-
-            StringBuilder response = new StringBuilder("{\"id\":").append(id);
-            if (!data.isEmpty()) {
-                response.append(",").append(data);
-            }
-            response.append("}");
-
-            sendJsonResponse(exchange, 200, response.toString());
+        Map<String, Object> data;
+        try {
+            data = mapper.readValue(ctx.body(), LinkedHashMap.class);
+        } catch (Exception e) {
+            data = new LinkedHashMap<>();
         }
 
-        private void updateItem(HttpExchange exchange, int id) throws IOException {
-            String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
-            if (contentType == null || !contentType.contains("application/json")) {
-                sendJsonResponse(exchange, 400, "{\"error\":\"Content-Type must be application/json\"}");
-                return;
-            }
-
-            String body = readBody(exchange);
-            String data = extractJsonContent(body);
-
-            rwLock.writeLock().lock();
-            try {
-                items.put(id, data);
-            } finally {
-                rwLock.writeLock().unlock();
-            }
-
-            StringBuilder response = new StringBuilder("{\"id\":").append(id);
-            if (data != null && !data.isEmpty()) {
-                response.append(",").append(data);
-            }
-            response.append("}");
-
-            sendJsonResponse(exchange, 200, response.toString());
+        rwLock.writeLock().lock();
+        try {
+            items.put(id, data);
+        } finally {
+            rwLock.writeLock().unlock();
         }
 
-        private void deleteItem(HttpExchange exchange, int id) throws IOException {
-            rwLock.writeLock().lock();
-            try {
-                items.remove(id);
-            } finally {
-                rwLock.writeLock().unlock();
-            }
-            sendJsonResponse(exchange, 200, "{\"deleted\":true}");
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", id);
+        result.putAll(data);
+        ctx.json(result);
+    }
+
+    private static void deleteItem(Context ctx) {
+        int id = Integer.parseInt(ctx.pathParam("id"));
+
+        rwLock.writeLock().lock();
+        try {
+            items.remove(id);
+        } finally {
+            rwLock.writeLock().unlock();
         }
 
-        private String readBody(HttpExchange exchange) throws IOException {
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8))) {
-                return reader.lines().collect(Collectors.joining("\n"));
-            }
-        }
-
-        private String extractJsonContent(String json) {
-            if (json == null || json.isEmpty()) return "";
-            json = json.trim();
-            if (json.startsWith("{") && json.endsWith("}")) {
-                String inner = json.substring(1, json.length() - 1).trim();
-                return inner;
-            }
-            return "";
-        }
-
-        private void sendJsonResponse(HttpExchange exchange, int status, String body) throws IOException {
-            exchange.getResponseHeaders().set("Content-Type", "application/json");
-            sendResponse(exchange, status, body);
-        }
-
-        private void sendResponse(HttpExchange exchange, int status, String body) throws IOException {
-            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(status, bytes.length);
-            try (OutputStream os = exchange.getResponseBody()) {
-                os.write(bytes);
-            }
-        }
+        ctx.json(Map.of("deleted", true));
     }
 }

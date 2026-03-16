@@ -2,7 +2,7 @@
 # examples/json/server.sn - JSON REST API Server
 # ==============================================================================
 # A simple REST API that stores JSON objects in memory.
-# Uses @serializable structs with FastJson for encode/decode.
+# Uses @serializable structs with Json for encode/decode.
 #
 # Endpoints:
 #   GET    /items      - List all items
@@ -13,7 +13,7 @@
 # ==============================================================================
 
 import "../../src/server"
-import "../../.sn/sindarin-pkg-sdk/src/encoding/fast_json"
+import "../../.sn/sindarin-pkg-json/src/json"
 
 @serializable
 struct Item =>
@@ -39,7 +39,7 @@ fn extractId(path: str): int =>
 
 # Encode an Item to JSON using FastJson
 fn encodeItem(item: Item): str =>
-    var enc: Encoder = FastJson.encoder()
+    var enc: Encoder = Json.encoder()
     item.encode(enc)
     return enc.result()
 
@@ -47,7 +47,7 @@ fn encodeItem(item: Item): str =>
 fn listItems(req: HttpRequest): HttpResponse =>
     var body: str
     lock(itemsLock) =>
-        var enc: Encoder = FastJson.arrayEncoder()
+        var enc: Encoder = Json.arrayEncoder()
         Item.encodeArray(items, enc)
         body = enc.result()
     return HttpResponse.ok().json(body)
@@ -58,7 +58,7 @@ fn createItem(req: HttpRequest): HttpResponse =>
         return HttpResponse.badRequest().json("{\"error\": \"Content-Type must be application/json\"}")
 
     # Decode the request body into an Item struct
-    var incoming: Item = Item.decode(FastJson.decoder(req.body))
+    var incoming: Item = Item.decode(Json.decoder(req.body))
 
     var itemJson: str
     lock(itemsLock) =>
@@ -91,7 +91,7 @@ fn updateItem(req: HttpRequest): HttpResponse =>
         return HttpResponse.badRequest().json("{\"error\": \"Content-Type must be application/json\"}")
 
     var id: int = extractId(req.path)
-    var incoming: Item = Item.decode(FastJson.decoder(req.body))
+    var incoming: Item = Item.decode(Json.decoder(req.body))
     incoming.id = id
 
     lock(itemsLock) =>

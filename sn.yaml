@@ -8,3 +8,6 @@ dependencies:
 - name: sindarin-pkg-test
   git: git@github.com:SindarinSDK/sindarin-pkg-test.git
   branch: main
+- name: sindarin-pkg-json
+  git: git@github.com:SindarinSDK/sindarin-pkg-json.git
+  branch: main

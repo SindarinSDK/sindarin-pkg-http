@@ -2,7 +2,7 @@
 # examples/json/server.sn - JSON REST API Server
 # ==============================================================================
 # A simple REST API that stores JSON objects in memory.
-# Run: make examples-json-server
+# Uses raw JSON strings instead of Json objects for maximum throughput.
 #
 # Endpoints:
 #   GET    /items      - List all items
@@ -14,10 +14,11 @@
 
 import "../../src/server"
 
-# In-memory storage for items
-var items: Json
+# In-memory storage: items[id] = JSON string like {"id":1,"name":"Item 1","value":1}
+# Index 0 is unused — IDs are 1-based
+var itemStrings: str[]
 
-# Synchronization lock for thread-safe access to items and nextId
+# Synchronization lock for thread-safe access
 sync var itemsLock: int = 0
 
 var nextId: int = 1
@@ -30,23 +31,11 @@ fn extractId(path: str): int =>
         return parts[2].toInt()
     return -1
 
-# Find item index by ID (caller must hold lock)
-fn findItemIndexUnsafe(id: int): int =>
-    var i: int = 0
-    while i < items.length() =>
-        var item: Json = items.getAt(i)
-        var itemId: Json = item.get("id")
-        var found: bool = itemId.asInt() == id
-        if found =>
-            return i
-        i = i + 1
-    return -1
-
 # GET /items - List all items
 fn listItems(req: HttpRequest): HttpResponse =>
     var body: str
     lock(itemsLock) =>
-        body = items.toPrettyString()
+        body = "[" + itemStrings.join(",") + "]"
     return HttpResponse.ok().json(body)
 
 # POST /items - Upsert item with cycling ID
@@ -54,80 +43,71 @@ fn createItem(req: HttpRequest): HttpResponse =>
     if !req.isJson() =>
         return HttpResponse.badRequest().json("{\"error\": \"Content-Type must be application/json\"}")
 
-    var body: Json = req.json()
-    var resp: HttpResponse
+    # Extract inner content from request body: {"name":"x","value":1} -> "name":"x","value":1
+    var rawBody: str = req.body.trim()
+    var inner: str = ""
+    if rawBody.length > 2 =>
+        inner = rawBody.substring(1, rawBody.length - 1)
 
+    var itemJson: str
     lock(itemsLock) =>
         var id: int = (nextId % maxItems) + 1
         nextId = nextId + 1
 
-        var idVal: Json = Json.ofInt(id)
-        body.set("id", idVal)
+        # Build item JSON string with ID injected
+        if inner.length > 0 =>
+            itemJson = "{\"id\":" + id.toString() + "," + inner + "}"
+        else =>
+            itemJson = "{\"id\":" + id.toString() + "}"
 
-        # Remove existing item with this ID if found
-        var existingIndex: int = findItemIndexUnsafe(id)
-        if existingIndex >= 0 =>
-            items.removeAt(existingIndex)
+        itemStrings[id] = itemJson
 
-        items.append(body)
+    return HttpResponse.ok().json(itemJson)
 
-        resp = HttpResponse.ok().jsonPretty(body)
-
-    return resp
-
-# GET /items/{id} - Get item by ID (returns empty item if not found)
+# GET /items/{id} - Get item by ID
 fn getItem(req: HttpRequest): HttpResponse =>
     var id: int = extractId(req.path)
-    var resp: HttpResponse
-
+    var itemJson: str
     lock(itemsLock) =>
-        var index: int = findItemIndexUnsafe(id)
-        if index < 0 =>
-            var empty: Json = Json.object()
-            empty.set("id", Json.ofInt(id))
-            empty.set("name", Json.ofString(""))
-            empty.set("value", Json.ofInt(0))
-            resp = HttpResponse.ok().jsonPretty(empty)
+        if id >= 1 && id <= maxItems =>
+            itemJson = itemStrings[id]
         else =>
-            var item: Json = items.getAt(index)
-            resp = HttpResponse.ok().jsonPretty(item)
+            itemJson = ""
 
-    return resp
+    if itemJson.length == 0 =>
+        return HttpResponse.ok().json("{\"id\":" + id.toString() + ",\"name\":\"\",\"value\":0}")
 
-# PUT /items/{id} - Update or create item by ID
+    return HttpResponse.ok().json(itemJson)
+
+# PUT /items/{id} - Update item by ID
 fn updateItem(req: HttpRequest): HttpResponse =>
     if !req.isJson() =>
         return HttpResponse.badRequest().json("{\"error\": \"Content-Type must be application/json\"}")
 
     var id: int = extractId(req.path)
-    var body: Json = req.json()
-    var resp: HttpResponse
+    var rawBody: str = req.body.trim()
+    var inner: str = ""
+    if rawBody.length > 2 =>
+        inner = rawBody.substring(1, rawBody.length - 1)
 
+    var itemJson: str
     lock(itemsLock) =>
-        var idVal: Json = Json.ofInt(id)
-        body.set("id", idVal)
-
-        var index: int = findItemIndexUnsafe(id)
-        if index >= 0 =>
-            # Remove old item and insert updated one
-            items.removeAt(index)
-            items.insertAt(index, body)
+        if inner.length > 0 =>
+            itemJson = "{\"id\":" + id.toString() + "," + inner + "}"
         else =>
-            # Item doesn't exist, create it
-            items.append(body)
+            itemJson = "{\"id\":" + id.toString() + "}"
+        if id >= 1 && id <= maxItems =>
+            itemStrings[id] = itemJson
 
-        resp = HttpResponse.ok().jsonPretty(body)
+    return HttpResponse.ok().json(itemJson)
 
-    return resp
-
-# DELETE /items/{id} - Delete item by ID (always returns 200)
+# DELETE /items/{id} - Delete item by ID
 fn deleteItem(req: HttpRequest): HttpResponse =>
     var id: int = extractId(req.path)
 
     lock(itemsLock) =>
-        var index: int = findItemIndexUnsafe(id)
-        if index >= 0 =>
-            items.removeAt(index)
+        if id >= 1 && id <= maxItems =>
+            itemStrings[id] = ""
 
     return HttpResponse.ok().json("{\"deleted\": true}")
 
@@ -147,17 +127,11 @@ fn handleItem(req: HttpRequest): HttpResponse =>
         else => HttpResponse.new(405).text("Method not allowed")
 
 fn main(): void =>
-    # Initialize items storage
-    items = Json.array()
-
-    # Pre-populate 1000 items
+    # Initialize items storage (index 0 unused, 1-1000 for items)
+    itemStrings = {}
     var i: int = 1
     while i <= maxItems =>
-        var item: Json = Json.object()
-        item.set("id", Json.ofInt(i))
-        item.set("name", Json.ofString($"Item {i}"))
-        item.set("value", Json.ofInt(i))
-        items.append(item)
+        itemStrings.push("{\"id\":" + i.toString() + ",\"name\":\"Item " + i.toString() + "\",\"value\":" + i.toString() + "}")
         i = i + 1
 
     # Create router

@@ -3,6 +3,7 @@
 # ==============================================================================
 # A simple REST API that stores JSON objects in memory.
 # Uses @serializable structs with Json for encode/decode.
+# Uses RwLock for concurrent read access (multiple GET threads in parallel).
 #
 # Endpoints:
 #   GET    /items      - List all items
@@ -14,6 +15,7 @@
 
 import "../../src/server"
 import "../../.sn/sindarin-pkg-json/src/json"
+import "../../.sn/sindarin-pkg-sdk/src/sync/rwlock"
 
 @serializable
 struct Item =>
@@ -24,11 +26,14 @@ struct Item =>
 # In-memory storage — index 0 is unused, IDs are 1-based
 var items: Item[]
 
-# Synchronization lock for thread-safe access
-sync var itemsLock: int = 0
+# Read-write lock for concurrent access
+var itemsRw: RwLock
 
 var nextId: int = 1
 var maxItems: int = 1000
+
+# Mutex for nextId increment (write-side only)
+sync var idLock: int = 0
 
 # Extract ID from path like "/items/123"
 fn extractId(path: str): int =>
@@ -43,16 +48,17 @@ fn encodeItem(item: Item): str =>
     item.encode(enc)
     return enc.result()
 
-# GET /items - List all items
+# GET /items - List all items (read lock — concurrent)
 fn listItems(req: HttpRequest): HttpResponse =>
     var body: str
-    lock(itemsLock) =>
-        var enc: Encoder = Json.arrayEncoder()
-        Item.encodeArray(items, enc)
-        body = enc.result()
+    itemsRw.readLock()
+    var enc: Encoder = Json.arrayEncoder()
+    Item.encodeArray(items, enc)
+    body = enc.result()
+    itemsRw.readUnlock()
     return HttpResponse.ok().json(body)
 
-# POST /items - Upsert item with cycling ID
+# POST /items - Upsert item with cycling ID (write lock — exclusive)
 fn createItem(req: HttpRequest): HttpResponse =>
     if !req.isJson() =>
         return HttpResponse.badRequest().json("{\"error\": \"Content-Type must be application/json\"}")
@@ -60,32 +66,32 @@ fn createItem(req: HttpRequest): HttpResponse =>
     # Decode the request body into an Item struct
     var incoming: Item = Item.decode(Json.decoder(req.body))
 
-    var itemJson: str
-    lock(itemsLock) =>
-        var id: int = (nextId % maxItems) + 1
-        nextId = nextId + 1
-        incoming.id = id
-        itemJson = encodeItem(incoming)
-        items[id - 1] = incoming
+    itemsRw.writeLock()
+    var id: int = (nextId % maxItems) + 1
+    nextId = nextId + 1
+    incoming.id = id
+    items[id - 1] = incoming
+    itemsRw.writeUnlock()
 
-    return HttpResponse.ok().json(itemJson)
+    return HttpResponse.ok().json(encodeItem(incoming))
 
-# GET /items/{id} - Get item by ID
+# GET /items/{id} - Get item by ID (read lock — concurrent)
 fn getItem(req: HttpRequest): HttpResponse =>
     var id: int = extractId(req.path)
     var itemJson: str
-    lock(itemsLock) =>
-        if id >= 1 && id <= maxItems =>
-            itemJson = encodeItem(items[id - 1])
-        else =>
-            itemJson = ""
+    itemsRw.readLock()
+    if id >= 1 && id <= maxItems =>
+        itemJson = encodeItem(items[id - 1])
+    else =>
+        itemJson = ""
+    itemsRw.readUnlock()
 
     if itemJson.length == 0 =>
         return HttpResponse.ok().json(encodeItem(Item { id: id, name: "", value: 0 }))
 
     return HttpResponse.ok().json(itemJson)
 
-# PUT /items/{id} - Update item by ID
+# PUT /items/{id} - Update item by ID (write lock — exclusive)
 fn updateItem(req: HttpRequest): HttpResponse =>
     if !req.isJson() =>
         return HttpResponse.badRequest().json("{\"error\": \"Content-Type must be application/json\"}")
@@ -94,19 +100,21 @@ fn updateItem(req: HttpRequest): HttpResponse =>
     var incoming: Item = Item.decode(Json.decoder(req.body))
     incoming.id = id
 
-    lock(itemsLock) =>
-        if id >= 1 && id <= maxItems =>
-            items[id - 1] = incoming
+    itemsRw.writeLock()
+    if id >= 1 && id <= maxItems =>
+        items[id - 1] = incoming
+    itemsRw.writeUnlock()
 
     return HttpResponse.ok().json(encodeItem(incoming))
 
-# DELETE /items/{id} - Delete item by ID
+# DELETE /items/{id} - Delete item by ID (write lock — exclusive)
 fn deleteItem(req: HttpRequest): HttpResponse =>
     var id: int = extractId(req.path)
 
-    lock(itemsLock) =>
-        if id >= 1 && id <= maxItems =>
-            items[id - 1] = Item { id: 0, name: "", value: 0 }
+    itemsRw.writeLock()
+    if id >= 1 && id <= maxItems =>
+        items[id - 1] = Item { id: 0, name: "", value: 0 }
+    itemsRw.writeUnlock()
 
     return HttpResponse.ok().json("{\"deleted\": true}")
 
@@ -132,6 +140,9 @@ fn main(): void =>
     while i <= maxItems =>
         items.push(Item { id: i, name: $"Item {i}", value: i })
         i = i + 1
+
+    # Initialize read-write lock
+    itemsRw = RwLock.new()
 
     # Create router
     var router: Router = Router.new()

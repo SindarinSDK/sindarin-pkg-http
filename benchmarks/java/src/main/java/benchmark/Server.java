@@ -9,24 +9,23 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 public class Server {
-    private static final Map<Integer, String> items = new ConcurrentHashMap<>();
-    private static final AtomicInteger counter = new AtomicInteger(0);
-    private static volatile String cachedListJson = null;
+    private static final Map<Integer, String> items = new HashMap<>();
+    private static final ReadWriteLock rwLock = new ReentrantReadWriteLock();
+    private static int counter = 0;
 
     static {
         for (int i = 1; i <= 1000; i++) {
             items.put(i, "\"name\":\"Item " + i + "\",\"value\":" + i);
         }
-        rebuildCache();
     }
 
-    private static void rebuildCache() {
+    private static String buildListJson() {
         StringBuilder sb = new StringBuilder(32768);
         sb.append("[");
         boolean first = true;
@@ -41,14 +40,7 @@ public class Server {
             first = false;
         }
         sb.append("]");
-        cachedListJson = sb.toString();
-    }
-
-    private static String getListJson() {
-        String cached = cachedListJson;
-        if (cached != null) return cached;
-        rebuildCache();
-        return cachedListJson;
+        return sb.toString();
     }
 
     public static void main(String[] args) throws IOException {
@@ -121,7 +113,14 @@ public class Server {
         }
 
         private void listItems(HttpExchange exchange) throws IOException {
-            sendJsonResponse(exchange, 200, getListJson());
+            String body;
+            rwLock.readLock().lock();
+            try {
+                body = buildListJson();
+            } finally {
+                rwLock.readLock().unlock();
+            }
+            sendJsonResponse(exchange, 200, body);
         }
 
         private void createItem(HttpExchange exchange) throws IOException {
@@ -134,9 +133,15 @@ public class Server {
             String body = readBody(exchange);
             String data = extractJsonContent(body);
 
-            int id = (counter.getAndIncrement() % 1000) + 1;
-            items.put(id, data);
-            rebuildCache();
+            int id;
+            rwLock.writeLock().lock();
+            try {
+                id = (counter % 1000) + 1;
+                counter++;
+                items.put(id, data);
+            } finally {
+                rwLock.writeLock().unlock();
+            }
 
             StringBuilder response = new StringBuilder("{\"id\":").append(id);
             if (data != null && !data.isEmpty()) {
@@ -148,7 +153,14 @@ public class Server {
         }
 
         private void getItem(HttpExchange exchange, int id) throws IOException {
-            String data = items.get(id);
+            String data;
+            rwLock.readLock().lock();
+            try {
+                data = items.get(id);
+            } finally {
+                rwLock.readLock().unlock();
+            }
+
             if (data == null) {
                 sendJsonResponse(exchange, 200, "{\"id\":" + id + ",\"name\":\"\",\"value\":0}");
                 return;
@@ -172,8 +184,13 @@ public class Server {
 
             String body = readBody(exchange);
             String data = extractJsonContent(body);
-            items.put(id, data);
-            rebuildCache();
+
+            rwLock.writeLock().lock();
+            try {
+                items.put(id, data);
+            } finally {
+                rwLock.writeLock().unlock();
+            }
 
             StringBuilder response = new StringBuilder("{\"id\":").append(id);
             if (data != null && !data.isEmpty()) {
@@ -185,8 +202,12 @@ public class Server {
         }
 
         private void deleteItem(HttpExchange exchange, int id) throws IOException {
-            items.remove(id);
-            rebuildCache();
+            rwLock.writeLock().lock();
+            try {
+                items.remove(id);
+            } finally {
+                rwLock.writeLock().unlock();
+            }
             sendJsonResponse(exchange, 200, "{\"deleted\":true}");
         }
 

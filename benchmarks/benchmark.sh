@@ -232,6 +232,12 @@ run_benchmark() {
         return 1
     fi
 
+    # Warmup
+    log "Warming up $lang server..."
+    wrk -t"$WRK_THREADS" -c"$WRK_CONNECTIONS" -d"$WARMUP_DURATION" \
+        "http://localhost:$PORT/items" > /dev/null 2>&1
+    sleep 1
+
     # Interleaved GET+POST+DELETE benchmark (all concurrent)
     log "Benchmarking interleaved GET+POST+DELETE /items..."
     wrk -t"$WRK_THREADS" -c"$WRK_CONNECTIONS" -d"$WRK_DURATION" \
@@ -278,7 +284,7 @@ parse_wrk_latency() {
 
 parse_wrk_p99() {
     local file=$1
-    grep "99%" "$file" 2>/dev/null | awk '{print $2}' || echo "N/A"
+    grep "^ *99%" "$file" 2>/dev/null | awk '{print $2}' || echo "N/A"
 }
 
 parse_time_memory() {

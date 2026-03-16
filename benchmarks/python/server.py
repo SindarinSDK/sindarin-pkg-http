@@ -10,29 +10,27 @@ from urllib.parse import urlparse
 items = {}
 next_id = 1
 lock = threading.Lock()
-cached_list_json = None
 
 # Pre-populate 1000 items
 for _i in range(1, 1001):
     items[_i] = {'name': f'Item {_i}', 'value': _i}
 
 
-def rebuild_cache():
-    global cached_list_json
+def build_list_json():
     result = []
     for item_id, data in items.items():
         item = {'id': item_id}
         item.update(data)
         result.append(item)
-    cached_list_json = json.dumps(result)
-
-
-# Build initial cache
-rebuild_cache()
+    return json.dumps(result)
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        # Suppress ConnectionResetError noise during benchmarks
+        pass
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -119,7 +117,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def list_items(self):
         with lock:
-            body = cached_list_json
+            body = build_list_json()
         self.send_json_raw(200, body)
 
     def create_item(self):
@@ -139,7 +137,6 @@ class RequestHandler(BaseHTTPRequestHandler):
             item_id = ((next_id - 1) % 1000) + 1
             next_id += 1
             items[item_id] = data
-            rebuild_cache()
 
         result = {'id': item_id}
         result.update(data)
@@ -173,7 +170,6 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         with lock:
             items[item_id] = data
-            rebuild_cache()
 
         result = {'id': item_id}
         result.update(data)
@@ -183,7 +179,6 @@ class RequestHandler(BaseHTTPRequestHandler):
         global items
         with lock:
             items.pop(item_id, None)
-            rebuild_cache()
 
         self.send_json(200, {'deleted': True})
 

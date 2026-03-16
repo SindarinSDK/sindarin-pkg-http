@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::Read;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -15,14 +15,6 @@ struct Item {
 struct AppState {
     items: HashMap<i32, Item>,
     counter: i32,
-    cached_list: String,
-}
-
-impl AppState {
-    fn rebuild_cache(&mut self) {
-        let items: Vec<&Item> = self.items.values().collect();
-        self.cached_list = serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string());
-    }
 }
 
 fn main() {
@@ -37,14 +29,12 @@ fn main() {
         );
     }
 
-    let mut state = AppState {
+    let state = AppState {
         items: initial_items,
         counter: 0,
-        cached_list: String::new(),
     };
-    state.rebuild_cache();
 
-    let state = Arc::new(Mutex::new(state));
+    let state = Arc::new(RwLock::new(state));
 
     let server = Server::http("0.0.0.0:8081").expect("Failed to start server");
     println!("Rust Server listening on port 8081");
@@ -57,7 +47,7 @@ fn main() {
     }
 }
 
-fn handle_request(mut request: Request, state: Arc<Mutex<AppState>>) {
+fn handle_request(mut request: Request, state: Arc<RwLock<AppState>>) {
     let path = request.url().to_string();
     let method = request.method().clone();
 
@@ -145,10 +135,11 @@ fn text_response(status: u16, text: &str) -> Response<std::io::Cursor<Vec<u8>>> 
     )
 }
 
-fn list_items(state: &Arc<Mutex<AppState>>) -> Response<std::io::Cursor<Vec<u8>>> {
+fn list_items(state: &Arc<RwLock<AppState>>) -> Response<std::io::Cursor<Vec<u8>>> {
     let body = {
-        let state = state.lock().unwrap();
-        state.cached_list.clone()
+        let state = state.read().unwrap();
+        let items: Vec<&Item> = state.items.values().collect();
+        serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string())
     };
     let header = Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
     Response::new(
@@ -160,8 +151,8 @@ fn list_items(state: &Arc<Mutex<AppState>>) -> Response<std::io::Cursor<Vec<u8>>
     )
 }
 
-fn create_item(state: &Arc<Mutex<AppState>>, body: &str) -> Response<std::io::Cursor<Vec<u8>>> {
-    let mut state = state.lock().unwrap();
+fn create_item(state: &Arc<RwLock<AppState>>, body: &str) -> Response<std::io::Cursor<Vec<u8>>> {
+    let mut state = state.write().unwrap();
 
     let mut data: Value = serde_json::from_str(body).unwrap_or(json!({}));
 
@@ -178,13 +169,12 @@ fn create_item(state: &Arc<Mutex<AppState>>, body: &str) -> Response<std::io::Cu
     };
 
     state.items.insert(id, item);
-    state.rebuild_cache();
 
     json_response(200, data)
 }
 
-fn get_item(state: &Arc<Mutex<AppState>>, id: i32) -> Response<std::io::Cursor<Vec<u8>>> {
-    let state = state.lock().unwrap();
+fn get_item(state: &Arc<RwLock<AppState>>, id: i32) -> Response<std::io::Cursor<Vec<u8>>> {
+    let state = state.read().unwrap();
 
     match state.items.get(&id) {
         Some(item) => {
@@ -199,11 +189,11 @@ fn get_item(state: &Arc<Mutex<AppState>>, id: i32) -> Response<std::io::Cursor<V
 }
 
 fn update_item(
-    state: &Arc<Mutex<AppState>>,
+    state: &Arc<RwLock<AppState>>,
     id: i32,
     body: &str,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
-    let mut state = state.lock().unwrap();
+    let mut state = state.write().unwrap();
 
     let mut data: Value = serde_json::from_str(body).unwrap_or(json!({}));
 
@@ -217,14 +207,12 @@ fn update_item(
     };
 
     state.items.insert(id, item);
-    state.rebuild_cache();
 
     json_response(200, data)
 }
 
-fn delete_item(state: &Arc<Mutex<AppState>>, id: i32) -> Response<std::io::Cursor<Vec<u8>>> {
-    let mut state = state.lock().unwrap();
+fn delete_item(state: &Arc<RwLock<AppState>>, id: i32) -> Response<std::io::Cursor<Vec<u8>>> {
+    let mut state = state.write().unwrap();
     state.items.remove(&id);
-    state.rebuild_cache();
     json_response(200, json!({"deleted": true}))
 }

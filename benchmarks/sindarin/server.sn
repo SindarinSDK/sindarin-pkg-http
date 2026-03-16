@@ -47,11 +47,9 @@ fn encodeItem(item: Item): str =>
 fn listItems(req: HttpRequest): HttpResponse =>
     var body: str
     lock(itemsLock) =>
-        var parts: str[] = {}
-        for i in 0..items.length =>
-            if items[i].name.length > 0 =>
-                parts.push(encodeItem(items[i]))
-        body = "[" + parts.join(",") + "]"
+        var enc: Encoder = FastJson.arrayEncoder()
+        Item.encodeArray(items, enc)
+        body = enc.result()
     return HttpResponse.ok().json(body)
 
 # POST /items - Upsert item with cycling ID

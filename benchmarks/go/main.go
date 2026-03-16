@@ -12,19 +12,9 @@ import (
 )
 
 type Item struct {
-	ID   int                    `json:"id"`
-	Data map[string]interface{} `json:"-"`
-}
-
-func (i Item) MarshalJSON() ([]byte, error) {
-	m := make(map[string]interface{})
-	m["id"] = i.ID
-	for k, v := range i.Data {
-		if k != "id" {
-			m[k] = v
-		}
-	}
-	return json.Marshal(m)
+	ID    int    `json:"id"`
+	Name  string `json:"name"`
+	Value int    `json:"value"`
 }
 
 var (
@@ -36,11 +26,9 @@ var (
 func init() {
 	for i := 1; i <= 1000; i++ {
 		items[i] = Item{
-			ID: i,
-			Data: map[string]interface{}{
-				"name":  fmt.Sprintf("Item %d", i),
-				"value": float64(i),
-			},
+			ID:    i,
+			Name:  fmt.Sprintf("Item %d", i),
+			Value: i,
 		}
 	}
 }
@@ -69,7 +57,6 @@ func itemsHandler(w http.ResponseWriter, r *http.Request) {
 func itemHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// Extract ID from path
 	path := strings.TrimPrefix(r.URL.Path, "/items/")
 	id, err := strconv.Atoi(path)
 	if err != nil || id <= 0 {
@@ -116,21 +103,20 @@ func createItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var data map[string]interface{}
+	var data Item
 	if err := json.Unmarshal(body, &data); err != nil {
-		data = make(map[string]interface{})
+		data = Item{}
 	}
 
 	c := counter.Add(1)
 	id := int((c-1)%1000) + 1
-
-	item := Item{ID: id, Data: data}
+	data.ID = id
 
 	mu.Lock()
-	items[id] = item
+	items[id] = data
 	mu.Unlock()
 
-	json.NewEncoder(w).Encode(item)
+	json.NewEncoder(w).Encode(data)
 }
 
 func getItem(w http.ResponseWriter, id int) {
@@ -139,13 +125,7 @@ func getItem(w http.ResponseWriter, id int) {
 	mu.RUnlock()
 
 	if !exists {
-		json.NewEncoder(w).Encode(Item{
-			ID: id,
-			Data: map[string]interface{}{
-				"name":  "",
-				"value": float64(0),
-			},
-		})
+		json.NewEncoder(w).Encode(Item{ID: id})
 		return
 	}
 
@@ -167,18 +147,17 @@ func updateItem(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 
-	var data map[string]interface{}
+	var data Item
 	if err := json.Unmarshal(body, &data); err != nil {
-		data = make(map[string]interface{})
+		data = Item{}
 	}
-
-	item := Item{ID: id, Data: data}
+	data.ID = id
 
 	mu.Lock()
-	items[id] = item
+	items[id] = data
 	mu.Unlock()
 
-	json.NewEncoder(w).Encode(item)
+	json.NewEncoder(w).Encode(data)
 }
 
 func deleteItem(w http.ResponseWriter, id int) {

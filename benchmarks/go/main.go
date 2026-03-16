@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 type Item struct {
@@ -28,7 +29,7 @@ func (i Item) MarshalJSON() ([]byte, error) {
 
 var (
 	items   = make(map[int]Item)
-	counter = 0
+	counter atomic.Int64
 	mu      sync.RWMutex
 )
 
@@ -91,12 +92,11 @@ func itemHandler(w http.ResponseWriter, r *http.Request) {
 
 func listItems(w http.ResponseWriter) {
 	mu.RLock()
-	defer mu.RUnlock()
-
 	list := make([]Item, 0, len(items))
 	for _, item := range items {
 		list = append(list, item)
 	}
+	mu.RUnlock()
 
 	json.NewEncoder(w).Encode(list)
 }
@@ -121,11 +121,12 @@ func createItem(w http.ResponseWriter, r *http.Request) {
 		data = make(map[string]interface{})
 	}
 
-	mu.Lock()
-	id := (counter % 1000) + 1
-	counter++
+	c := counter.Add(1)
+	id := int((c-1)%1000) + 1
 
 	item := Item{ID: id, Data: data}
+
+	mu.Lock()
 	items[id] = item
 	mu.Unlock()
 
@@ -171,8 +172,9 @@ func updateItem(w http.ResponseWriter, r *http.Request, id int) {
 		data = make(map[string]interface{})
 	}
 
-	mu.Lock()
 	item := Item{ID: id, Data: data}
+
+	mu.Lock()
 	items[id] = item
 	mu.Unlock()
 

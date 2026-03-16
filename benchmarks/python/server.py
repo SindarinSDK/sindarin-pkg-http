@@ -10,10 +10,25 @@ from urllib.parse import urlparse
 items = {}
 next_id = 1
 lock = threading.Lock()
+cached_list_json = None
 
 # Pre-populate 1000 items
 for _i in range(1, 1001):
     items[_i] = {'name': f'Item {_i}', 'value': _i}
+
+
+def rebuild_cache():
+    global cached_list_json
+    result = []
+    for item_id, data in items.items():
+        item = {'id': item_id}
+        item.update(data)
+        result.append(item)
+    cached_list_json = json.dumps(result)
+
+
+# Build initial cache
+rebuild_cache()
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
@@ -28,6 +43,14 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def send_json(self, status, data):
         body = json.dumps(data).encode('utf-8')
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', len(body))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_json_raw(self, status, json_str):
+        body = json_str.encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', len(body))
@@ -95,14 +118,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_text(404, 'Not found')
 
     def list_items(self):
-        global items
         with lock:
-            result = []
-            for item_id, data in items.items():
-                item = {'id': item_id}
-                item.update(data)
-                result.append(item)
-        self.send_json(200, result)
+            body = cached_list_json
+        self.send_json_raw(200, body)
 
     def create_item(self):
         global items, next_id
@@ -121,6 +139,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             item_id = ((next_id - 1) % 1000) + 1
             next_id += 1
             items[item_id] = data
+            rebuild_cache()
 
         result = {'id': item_id}
         result.update(data)
@@ -154,6 +173,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         with lock:
             items[item_id] = data
+            rebuild_cache()
 
         result = {'id': item_id}
         result.update(data)
@@ -163,6 +183,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         global items
         with lock:
             items.pop(item_id, None)
+            rebuild_cache()
 
         self.send_json(200, {'deleted': True})
 

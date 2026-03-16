@@ -17,11 +17,38 @@ import java.util.stream.Collectors;
 public class Server {
     private static final Map<Integer, String> items = new ConcurrentHashMap<>();
     private static final AtomicInteger counter = new AtomicInteger(0);
+    private static volatile String cachedListJson = null;
 
     static {
         for (int i = 1; i <= 1000; i++) {
             items.put(i, "\"name\":\"Item " + i + "\",\"value\":" + i);
         }
+        rebuildCache();
+    }
+
+    private static void rebuildCache() {
+        StringBuilder sb = new StringBuilder(32768);
+        sb.append("[");
+        boolean first = true;
+        for (Map.Entry<Integer, String> entry : items.entrySet()) {
+            if (!first) sb.append(",");
+            sb.append("{\"id\":").append(entry.getKey());
+            String data = entry.getValue();
+            if (data != null && !data.isEmpty()) {
+                sb.append(",").append(data);
+            }
+            sb.append("}");
+            first = false;
+        }
+        sb.append("]");
+        cachedListJson = sb.toString();
+    }
+
+    private static String getListJson() {
+        String cached = cachedListJson;
+        if (cached != null) return cached;
+        rebuildCache();
+        return cachedListJson;
     }
 
     public static void main(String[] args) throws IOException {
@@ -94,20 +121,7 @@ public class Server {
         }
 
         private void listItems(HttpExchange exchange) throws IOException {
-            StringBuilder sb = new StringBuilder("[");
-            boolean first = true;
-            for (Map.Entry<Integer, String> entry : items.entrySet()) {
-                if (!first) sb.append(",");
-                sb.append("{\"id\":").append(entry.getKey());
-                String data = entry.getValue();
-                if (data != null && !data.isEmpty()) {
-                    sb.append(",").append(data);
-                }
-                sb.append("}");
-                first = false;
-            }
-            sb.append("]");
-            sendJsonResponse(exchange, 200, sb.toString());
+            sendJsonResponse(exchange, 200, getListJson());
         }
 
         private void createItem(HttpExchange exchange) throws IOException {
@@ -122,6 +136,7 @@ public class Server {
 
             int id = (counter.getAndIncrement() % 1000) + 1;
             items.put(id, data);
+            rebuildCache();
 
             StringBuilder response = new StringBuilder("{\"id\":").append(id);
             if (data != null && !data.isEmpty()) {
@@ -158,6 +173,7 @@ public class Server {
             String body = readBody(exchange);
             String data = extractJsonContent(body);
             items.put(id, data);
+            rebuildCache();
 
             StringBuilder response = new StringBuilder("{\"id\":").append(id);
             if (data != null && !data.isEmpty()) {
@@ -170,6 +186,7 @@ public class Server {
 
         private void deleteItem(HttpExchange exchange, int id) throws IOException {
             items.remove(id);
+            rebuildCache();
             sendJsonResponse(exchange, 200, "{\"deleted\":true}");
         }
 

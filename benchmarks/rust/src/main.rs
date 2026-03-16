@@ -15,6 +15,14 @@ struct Item {
 struct AppState {
     items: HashMap<i32, Item>,
     counter: i32,
+    cached_list: String,
+}
+
+impl AppState {
+    fn rebuild_cache(&mut self) {
+        let items: Vec<&Item> = self.items.values().collect();
+        self.cached_list = serde_json::to_string(&items).unwrap_or_else(|_| "[]".to_string());
+    }
 }
 
 fn main() {
@@ -29,10 +37,14 @@ fn main() {
         );
     }
 
-    let state = Arc::new(Mutex::new(AppState {
+    let mut state = AppState {
         items: initial_items,
         counter: 0,
-    }));
+        cached_list: String::new(),
+    };
+    state.rebuild_cache();
+
+    let state = Arc::new(Mutex::new(state));
 
     let server = Server::http("0.0.0.0:8081").expect("Failed to start server");
     println!("Rust Server listening on port 8081");
@@ -134,9 +146,18 @@ fn text_response(status: u16, text: &str) -> Response<std::io::Cursor<Vec<u8>>> 
 }
 
 fn list_items(state: &Arc<Mutex<AppState>>) -> Response<std::io::Cursor<Vec<u8>>> {
-    let state = state.lock().unwrap();
-    let items: Vec<&Item> = state.items.values().collect();
-    json_response(200, json!(items))
+    let body = {
+        let state = state.lock().unwrap();
+        state.cached_list.clone()
+    };
+    let header = Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+    Response::new(
+        StatusCode(200),
+        vec![header],
+        std::io::Cursor::new(body.into_bytes()),
+        None,
+        None,
+    )
 }
 
 fn create_item(state: &Arc<Mutex<AppState>>, body: &str) -> Response<std::io::Cursor<Vec<u8>>> {
@@ -157,6 +178,7 @@ fn create_item(state: &Arc<Mutex<AppState>>, body: &str) -> Response<std::io::Cu
     };
 
     state.items.insert(id, item);
+    state.rebuild_cache();
 
     json_response(200, data)
 }
@@ -195,6 +217,7 @@ fn update_item(
     };
 
     state.items.insert(id, item);
+    state.rebuild_cache();
 
     json_response(200, data)
 }
@@ -202,5 +225,6 @@ fn update_item(
 fn delete_item(state: &Arc<Mutex<AppState>>, id: i32) -> Response<std::io::Cursor<Vec<u8>>> {
     let mut state = state.lock().unwrap();
     state.items.remove(&id);
+    state.rebuild_cache();
     json_response(200, json!({"deleted": true}))
 }

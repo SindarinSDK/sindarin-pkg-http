@@ -44,10 +44,10 @@ fn findItemIndexUnsafe(id: int): int =>
 
 # GET /items - List all items
 fn listItems(req: HttpRequest): HttpResponse =>
-    var resp: HttpResponse
+    var body: str
     lock(itemsLock) =>
-        resp = HttpResponse.ok().jsonPretty(items)
-    return resp
+        body = items.toPrettyString()
+    return HttpResponse.ok().json(body)
 
 # POST /items - Upsert item with cycling ID
 fn createItem(req: HttpRequest): HttpResponse =>

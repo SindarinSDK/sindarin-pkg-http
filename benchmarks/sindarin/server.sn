@@ -27,7 +27,7 @@ struct Item =>
 var items: Item[]
 
 # Read-write lock for concurrent access
-var itemsRw: ReaderWriteLock
+var itemsRw: ReaderWriterLock
 
 var nextId: int = 1
 var maxItems: int = 1000
@@ -142,7 +142,7 @@ fn main(): void =>
         i = i + 1
 
     # Initialize read-write lock
-    itemsRw = ReaderWriteLock.new()
+    itemsRw = ReaderWriterLock.new()
 
     # Create router
     var router: Router = Router.new()

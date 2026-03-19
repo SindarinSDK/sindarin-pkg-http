@@ -11,3 +11,6 @@ dependencies:
 - name: sindarin-pkg-json
   git: https://github.com/SindarinSDK/sindarin-pkg-json.git
   branch: main
+- name: sindarin-pkg-threads
+  git: git@github.com:SindarinSDK/sindarin-pkg-threads.git
+  branch: main

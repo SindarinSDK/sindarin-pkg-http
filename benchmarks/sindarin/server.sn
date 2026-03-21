@@ -14,8 +14,8 @@
 # ==============================================================================
 
 import "../../src/server"
-import "../../.sn/sindarin-pkg-json/src/json"
-import "../../.sn/sindarin-pkg-threads/src/rwlock"
+import "sindarin-pkg-json/src/json"
+import "sindarin-pkg-threads/src/rwlock"
 
 @serializable
 struct Item =>

@@ -14,7 +14,7 @@
 # ==============================================================================
 
 import "../../src/server"
-import "../../.sn/sindarin-pkg-sdk/src/time/time"
+import "sindarin-pkg-sdk/src/time/time"
 
 # Parse Content-Length from headers
 fn getContentLength(headers: str): int =>

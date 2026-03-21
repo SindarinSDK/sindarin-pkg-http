@@ -6,8 +6,8 @@
 # ==============================================================================
 
 import "../../src/server"
-import "../../.sn/sindarin-pkg-sdk/src/io/textfile"
-import "../../.sn/sindarin-pkg-sdk/src/io/path"
+import "sindarin-pkg-sdk/src/io/textfile"
+import "sindarin-pkg-sdk/src/io/path"
 
 # Get content type based on file extension
 fn contentType(ext: str): str =>

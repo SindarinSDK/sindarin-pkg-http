@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Phony targets
 #------------------------------------------------------------------------------
-.PHONY: all test clean help examples benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin benchmark-sindarin-no-asan benchmark-sindarin-profile
+.PHONY: all test clean help examples benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin benchmark-sindarin-no-asan benchmark-sindarin-profile benchmark-sindarin-massif
 
 # Disable implicit rules for .sn.c files (these are compiled by the Sindarin compiler)
 %.sn: %.sn.c
@@ -91,6 +91,7 @@ help:
 	@echo "  make benchmark-clean Clean benchmark artifacts"
 	@echo "  make benchmark-sindarin  Run Sindarin-only benchmark (interleaved, ASAN)"
 	@echo "  make benchmark-sindarin-profile  Profile benchmark (perf + flame graph)"
+	@echo "  make benchmark-sindarin-massif   Heap profile with valgrind massif"
 	@echo "  make clean           Remove build artifacts"
 	@echo "  make help            Show this help"
 	@echo ""
@@ -139,7 +140,7 @@ examples: $(HTML_SERVER_BIN) $(JSON_SERVER_BIN) $(JSON_CLIENT_BIN) $(SIMPLE_SERV
 #------------------------------------------------------------------------------
 # benchmark - Run HTTP server benchmarks
 #------------------------------------------------------------------------------
-.PHONY: benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin benchmark-sindarin-no-asan
+.PHONY: benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin benchmark-sindarin-no-asan benchmark-sindarin-massif
 
 BENCHMARK_DIR := benchmarks
 BENCHMARK_SCRIPT := $(BENCHMARK_DIR)/benchmark.sh
@@ -495,4 +496,87 @@ for k, v in sorted(stacks.items(), key=lambda x: -x[1])[:200]: print(f'{k} {v}')
 		echo "  $$RESULTS_DIR/flamegraph.svg        (flame graph)"; \
 	fi; \
 	echo "  $$RESULTS_DIR/callgrind.out         (raw data, use kcachegrind to explore)"; \
+	echo ""
+
+#------------------------------------------------------------------------------
+# benchmark-sindarin-massif - Heap profiling with valgrind massif
+#------------------------------------------------------------------------------
+BENCHMARK_SINDARIN_MASSIF_BIN := $(BIN_DIR)/benchmark_sindarin_massif$(EXE_EXT)
+MASSIF_REQUESTS := 200
+
+benchmark-sindarin-massif: benchmark-prereqs | $(BIN_DIR)
+	@echo "Compiling Sindarin benchmark server (massif mode, no ASAN)..."
+	@$(SN) $(BENCHMARK_SINDARIN_SN) -o $(BENCHMARK_SINDARIN_MASSIF_BIN) -l 1
+	@which valgrind > /dev/null 2>&1 || (echo "ERROR: valgrind not found. Install with: sudo apt install valgrind" && exit 1)
+	@. $(BENCHMARK_DIR)/config.sh; \
+	RESULTS_DIR=$(BENCHMARK_DIR)/results/massif-$$(date +%Y%m%d-%H%M%S); \
+	mkdir -p "$$RESULTS_DIR"; \
+	echo "Results will be saved to $$RESULTS_DIR"; \
+	echo "Profiler: massif (valgrind)"; \
+	echo "Requests: $(MASSIF_REQUESTS) GET + $(MASSIF_REQUESTS) POST + $(MASSIF_REQUESTS) GET/{id}"; \
+	echo ""; \
+	echo "Starting Sindarin server under massif (slow startup expected)..."; \
+	valgrind --tool=massif --detailed-freq=1 --max-snapshots=100 \
+		--massif-out-file="$$RESULTS_DIR/massif.out" \
+		./$(BENCHMARK_SINDARIN_MASSIF_BIN) > "$$RESULTS_DIR/server.log" 2>&1 & \
+	SERVER_PID=$$!; \
+	ATTEMPT=0; \
+	while ! curl -s "http://localhost:$$BENCHMARK_PORT/items/1" > /dev/null 2>&1; do \
+		sleep 1; \
+		ATTEMPT=$$((ATTEMPT + 1)); \
+		if [ $$((ATTEMPT % 15)) -eq 0 ]; then echo "  Waiting for server... ($${ATTEMPT}s)"; fi; \
+		if [ $$ATTEMPT -ge 180 ]; then \
+			echo "ERROR: Server failed to start within 3 minutes"; \
+			cat "$$RESULTS_DIR/server.log" 2>/dev/null; \
+			kill $$SERVER_PID 2>/dev/null; \
+			exit 1; \
+		fi; \
+	done && \
+	echo "Server ready on port $$BENCHMARK_PORT (PID $$SERVER_PID)" && \
+	echo "" && \
+	echo "Sending $(MASSIF_REQUESTS) GET /items requests..." && \
+	for i in $$(seq 1 $(MASSIF_REQUESTS)); do \
+		curl -s "http://localhost:$$BENCHMARK_PORT/items" > /dev/null 2>&1; \
+	done && \
+	echo "Sending $(MASSIF_REQUESTS) POST /items requests..." && \
+	for i in $$(seq 1 $(MASSIF_REQUESTS)); do \
+		curl -s -X POST -H "Content-Type: application/json" \
+			-d "{\"name\":\"bench\",\"value\":$$i}" \
+			"http://localhost:$$BENCHMARK_PORT/items" > /dev/null 2>&1; \
+	done && \
+	echo "Sending $(MASSIF_REQUESTS) GET /items/{id} requests..." && \
+	for i in $$(seq 1 $(MASSIF_REQUESTS)); do \
+		curl -s "http://localhost:$$BENCHMARK_PORT/items/$$((i % 1000 + 1))" > /dev/null 2>&1; \
+	done && \
+	echo "Requests complete, stopping server..." && \
+	kill -TERM $$SERVER_PID 2>/dev/null; \
+	sleep 3; \
+	kill -0 $$SERVER_PID 2>/dev/null && kill -9 $$SERVER_PID 2>/dev/null || true; \
+	fuser -k $$BENCHMARK_PORT/tcp 2>/dev/null || true; \
+	sleep 1; \
+	echo "" && \
+	echo "Generating massif report..." && \
+	ms_print "$$RESULTS_DIR/massif.out" > "$$RESULTS_DIR/massif-report.txt" 2>/dev/null; \
+	PEAK_HEAP=$$(grep "peak" "$$RESULTS_DIR/massif-report.txt" 2>/dev/null | head -1); \
+	echo ""; \
+	echo "========================================="; \
+	echo " Sindarin HTTP Massif Results"; \
+	echo "========================================="; \
+	echo ""; \
+	printf "  %-16s %s\n" "Profiler:" "massif (valgrind)"; \
+	printf "  %-16s %s\n" "Build:" "release (no ASAN)"; \
+	printf "  %-16s %s\n" "Requests:" "$(MASSIF_REQUESTS) GET + $(MASSIF_REQUESTS) POST + $(MASSIF_REQUESTS) GET/{id}"; \
+	echo ""; \
+	echo "  Heap Summary"; \
+	echo "  -----------------------------------------"; \
+	head -30 "$$RESULTS_DIR/massif-report.txt" 2>/dev/null; \
+	echo ""; \
+	echo "  Top Allocators (peak snapshot)"; \
+	echo "  -----------------------------------------"; \
+	awk '/^--/,0' "$$RESULTS_DIR/massif-report.txt" 2>/dev/null | head -40; \
+	echo ""; \
+	echo "  Output Files"; \
+	echo "  -----------------------------------------"; \
+	echo "  $$RESULTS_DIR/massif-report.txt    (ms_print report)"; \
+	echo "  $$RESULTS_DIR/massif.out           (raw data, use massif-visualizer to explore)"; \
 	echo ""

@@ -70,10 +70,12 @@ var code: int = STATUS_OK           // 200
 var code: int = STATUS_NOT_FOUND    // 404
 var text: str = HttpStatus.text(200)     // "OK"
 
-HttpStatus.isSuccess(200)      // true
-HttpStatus.isClientError(404)  // true
-HttpStatus.isServerError(500)  // true
-HttpStatus.isError(400)        // true (4xx or 5xx)
+HttpStatus.isInformational(100) // true (1xx)
+HttpStatus.isSuccess(200)       // true (2xx)
+HttpStatus.isRedirect(301)      // true (3xx)
+HttpStatus.isClientError(404)   // true (4xx)
+HttpStatus.isServerError(500)   // true (5xx)
+HttpStatus.isError(400)         // true (4xx or 5xx)
 ```
 
 ### Request
@@ -93,16 +95,28 @@ req.body            // Request body content
 req.getHeader("Content-Type")
 req.hasHeader("Authorization")
 req.queryParam("page")
-req.isGet()
-req.isPost()
 ```
 
-#### JSON Body Parsing
+#### Content Inspection
 
 ```sindarin
-if req.isJson() =>
-    var data: Json = req.json()
-    var name: str = data.get("name").asString()
+req.contentType()       // Content-Type header value
+req.contentLength()     // Content-Length as int
+req.hasBody()           // true if body is non-empty
+req.isJson()            // true if Content-Type starts with application/json
+req.hasQueryParam("page")
+```
+
+#### Method Helpers
+
+```sindarin
+req.isGet()
+req.isPost()
+req.isPut()
+req.isDelete()
+req.isPatch()
+req.isHead()
+req.isOptions()
 ```
 
 ### Response
@@ -121,14 +135,30 @@ res.setHeader("X-Custom", "value")
 var output: str = res.toString()
 ```
 
-#### JSON Responses
+#### Convenience Factories
 
 ```sindarin
-var data: Json = Json.object()
-data.set("message", Json.ofString("Hello"))
+HttpResponse.new(201)                // Any status code
+HttpResponse.ok()                    // 200
+HttpResponse.created()               // 201
+HttpResponse.noContent()             // 204
+HttpResponse.badRequest()            // 400
+HttpResponse.unauthorized()          // 401
+HttpResponse.forbidden()             // 403
+HttpResponse.notFound()              // 404
+HttpResponse.methodNotAllowed()      // 405
+HttpResponse.internalServerError()   // 500
+HttpResponse.redirect("/new-path")   // 302 with Location header
+```
 
-var res: HttpResponse = HttpResponse.ok().jsonData(data)
-var pretty: HttpResponse = HttpResponse.ok().jsonPretty(data)
+#### Builder Methods
+
+```sindarin
+var res: HttpResponse = HttpResponse.ok()
+res.addHeader("X-Custom", "value")   // Append header
+res.setBody("raw content")           // Set body directly
+res.getHeader("Content-Type")        // Read header value
+res.hasHeader("X-Custom")            // Check header exists
 ```
 
 ### Router
@@ -141,11 +171,19 @@ import "http/router"
 var router: Router = Router.new()
 router.get("/", homeHandler)
 router.post("/users", createUserHandler)
+router.put("/users/*", updateUserHandler)
+router.delete("/users/*", deleteUserHandler)
+router.patch("/users/*", patchUserHandler)
+router.head("/health", headHealthHandler)
+router.options("/api/**", corsHandler)
+router.all("/health", healthHandler)        // Any method
+router.route("CUSTOM", "/rpc", rpcHandler)  // Arbitrary method
+
 router.get("/users/*", getUserHandler)      // Single segment wildcard
 router.get("/api/**", apiHandler)           // Multi-segment wildcard
-router.all("/health", healthHandler)        // Any method
 
 router.setNotFoundHandler(custom404Handler)
+router.setMethodNotAllowedHandler(custom405Handler)
 var response: HttpResponse = router.handle(request)
 ```
 
@@ -192,7 +230,14 @@ make help       # Show all targets
 
 ## Dependencies
 
-This package depends on [sindarin-pkg-sdk](https://github.com/SindarinSDK/sindarin-pkg-sdk) for TCP networking and JSON support. Dependencies are automatically managed via the `sn.yaml` package manifest.
+This package depends on:
+
+- [sindarin-pkg-sdk](https://github.com/SindarinSDK/sindarin-pkg-sdk) - TCP networking and core utilities
+- [sindarin-pkg-json](https://github.com/SindarinSDK/sindarin-pkg-json) - JSON support
+- [sindarin-pkg-threads](https://github.com/SindarinSDK/sindarin-pkg-threads) - Multithreading primitives
+- [sindarin-pkg-test](https://github.com/SindarinSDK/sindarin-pkg-test) - Testing framework
+
+Dependencies are automatically managed via the `sn.yaml` package manifest.
 
 ## License
 

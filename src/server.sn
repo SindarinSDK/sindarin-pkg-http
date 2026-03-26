@@ -1,11 +1,11 @@
 # ==============================================================================
 # server.sn - HTTP Server
 # ==============================================================================
-# A multithreaded HTTP/1.1 server built on TCP sockets.
+# A multithreaded HTTP/1.1 server with generic transport support.
 #
 # Usage:
 #   import "server"
-#   import "router"
+#   import "sindarin-pkg-sdk/src/net/tcp"
 #
 #   fn homeHandler(req: HttpRequest): HttpResponse =>
 #       return HttpResponse.ok().html("<h1>Hello World</h1>")
@@ -13,11 +13,13 @@
 #   var router: Router = Router.new()
 #   router.get("/", homeHandler)
 #
-#   var server: HttpServer = HttpServer.new(router)
-#   server.listen(8080)  # Blocks and serves requests
+#   var listener: TcpListener = TcpListener.bind(":8080")
+#   var server: HttpServer<TcpStream> = HttpServer<TcpStream>.new(router)
+#   var acceptFn: fn(): TcpStream = fn(): TcpStream => listener.accept()
+#   server.serve(acceptFn, listener.port())
 # ==============================================================================
 
-import "sindarin-pkg-sdk/src/net/tcp"
+import "sindarin-pkg-sdk/src/net/stream"
 import "request"
 import "response"
 import "router"
@@ -40,7 +42,7 @@ sync var totalErrors: int = 0
 # HttpServer Structure
 # ==============================================================================
 
-struct HttpServer =>
+struct HttpServer<S: NetStream> =>
     router: Router
     host: str
     port: int
@@ -51,14 +53,13 @@ struct HttpServer =>
     # Static Factory Methods
     # ==========================================================================
 
-    static fn new(router: Router): HttpServer =>
-        var server: HttpServer = HttpServer { router: router, host: "0.0.0.0", port: 8080, maxRequestSize: 1048576, running: false }
+    static fn new(router: Router): HttpServer<S> =>
+        var server: HttpServer<S> = HttpServer<S> { router: router, host: "0.0.0.0", port: 8080, maxRequestSize: 1048576, running: false }
         return server
 
     # Create with specific port
-    static fn onPort(router: Router, port: int): HttpServer =>
-        var server: HttpServer = HttpServer.new(router)
-        server.port = port
+    static fn onPort(router: Router, port: int): HttpServer<S> =>
+        var server: HttpServer<S> = HttpServer<S> { router: router, host: "0.0.0.0", port: port, maxRequestSize: 1048576, running: false }
         return server
 
     # ==========================================================================
@@ -70,31 +71,19 @@ struct HttpServer =>
         var stats: ServerStats = ServerStats { totalRequests: totalRequests, activeConnections: activeConnections, totalErrors: totalErrors }
         return stats
 
-    # Quick start: serve all requests with a single handler
-    static fn serve(port: int, handler: fn(HttpRequest): HttpResponse): void =>
-        var router: Router = Router.new()
-        router.all("/**", handler)
-        var server: HttpServer = HttpServer.new(router)
-        server.listen(port)
-
-    # Quick start: serve with a router
-    static fn serveRouter(port: int, router: Router): void =>
-        var server: HttpServer = HttpServer.new(router)
-        server.listen(port)
-
     # ==========================================================================
     # Configuration Methods
     # ==========================================================================
 
-    fn setHost(host: str): HttpServer =>
+    fn setHost(host: str): HttpServer<S> =>
         self.host = host
         return self
 
-    fn setPort(port: int): HttpServer =>
+    fn setPort(port: int): HttpServer<S> =>
         self.port = port
         return self
 
-    fn setMaxRequestSize(size: int): HttpServer =>
+    fn setMaxRequestSize(size: int): HttpServer<S> =>
         self.maxRequestSize = size
         return self
 
@@ -102,26 +91,17 @@ struct HttpServer =>
     # Server Control
     # ==========================================================================
 
-    # Start the server and listen for connections (blocking)
-    fn listen(port: int): void =>
+    # Start the server with an accept callback (blocking)
+    fn serve(accept: fn(): S, port: int): void =>
         self.port = port
         self.running = true
 
-        var address: str = $"{self.host}:{self.port}"
-        var listener: TcpListener = TcpListener.bind(address)
-
-        print($"HTTP server listening on http://{self.host}:{listener.port()}\n")
+        print($"HTTP server listening on {self.host}:{self.port}\n")
 
         while self.running =>
-            var client: TcpStream = listener.accept()
+            var client: S = accept()
             activeConnections++
             &self.handleClient(client)
-
-        listener.dispose()
-
-    # Start on configured port
-    fn start(): void =>
-        self.listen(self.port)
 
     # Stop the server (would need to be called from another thread)
     fn stop(): void =>
@@ -132,9 +112,7 @@ struct HttpServer =>
     # ==========================================================================
 
     # Handle a client connection with HTTP/1.1 keep-alive support
-    fn handleClient(client: TcpStream): void =>
-        client.setTimeout(5000)
-
+    fn handleClient(client: S): void =>
         var keepAlive: bool = true
         while keepAlive =>
             var requestData: str = self.readRequest(client)
@@ -161,13 +139,12 @@ struct HttpServer =>
 
             var responseBytes: byte[] = response.toBytes()
             client.write(responseBytes)
-            
 
         client.dispose()
         activeConnections--
 
     # Read HTTP request from client
-    fn readRequest(client: TcpStream): str =>
+    fn readRequest(client: S): str =>
         var buffer: str = ""
         var headersComplete: bool = false
         var contentLength: int = 0
@@ -222,4 +199,3 @@ fn parseContentLength(data: str): int =>
             var valueStr: str = line.substring(15, line.length).trim()
             return valueStr.toInt()
     return 0
-

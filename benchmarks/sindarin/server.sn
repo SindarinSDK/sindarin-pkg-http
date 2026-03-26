@@ -14,6 +14,7 @@
 # ==============================================================================
 
 import "../../src/server"
+import "sindarin-pkg-sdk/src/net/tcp"
 import "sindarin-pkg-json/src/json"
 import "sindarin-pkg-threads/src/rwlock"
 
@@ -149,6 +150,8 @@ fn main(): void =>
     router.all("/items", handleItems)
     router.all("/items/*", handleItem)
 
-    # Create and start server
-    var server: HttpServer = HttpServer.new(router)
-    server.listen(8081)
+    # Create listener and server
+    var listener: TcpListener = TcpListener.bind(":8081")
+    var server: HttpServer<TcpStream> = HttpServer<TcpStream>.new(router)
+    var acceptFn: fn(): TcpStream = fn(): TcpStream => listener.accept()
+    server.serve(acceptFn, listener.port())

@@ -15,6 +15,7 @@
 # ==============================================================================
 
 import "../../src/server"
+import "sindarin-pkg-sdk/src/net/tcp"
 import "sindarin-pkg-sdk/src/time/time"
 
 # Parse Content-Length from headers

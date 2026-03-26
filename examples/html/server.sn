@@ -6,6 +6,7 @@
 # ==============================================================================
 
 import "../../src/server"
+import "sindarin-pkg-sdk/src/net/tcp"
 import "sindarin-pkg-sdk/src/io/textfile"
 import "sindarin-pkg-sdk/src/io/path"
 
@@ -58,8 +59,10 @@ fn main(): void =>
     var router: Router = Router.new()
     router.get("/**", serveStatic)
 
-    # Create and start server
-    var server: HttpServer = HttpServer.new(router)
+    # Create listener and server
+    var listener: TcpListener = TcpListener.bind(":8080")
+    var server: HttpServer<TcpStream> = HttpServer<TcpStream>.new(router)
     print("Serving content from examples/html/content/\n")
     print("Open http://localhost:8080 in your browser\n\n")
-    server.listen(8080)
+    var acceptFn: fn(): TcpStream = fn(): TcpStream => listener.accept()
+    server.serve(acceptFn, listener.port())

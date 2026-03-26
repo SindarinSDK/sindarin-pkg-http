@@ -15,6 +15,7 @@
 # ==============================================================================
 
 import "../../src/server"
+import "sindarin-pkg-sdk/src/net/tcp"
 
 # Request counters (prefixed to avoid conflict with server module)
 var simpleTotal: int = 0
@@ -122,8 +123,9 @@ fn main(): void =>
     router.get("/stats", routeStats)
     router.get("/data/*", routeData)
 
-    # Create and start server
-    var server: HttpServer = HttpServer.new(router)
+    # Create listener and server
+    var listener: TcpListener = TcpListener.bind(":8082")
+    var server: HttpServer<TcpStream> = HttpServer<TcpStream>.new(router)
     print("Server running at http://localhost:8082\n")
     print("Endpoints:\n")
     print("  GET  /ping       - Returns 'pong'\n")
@@ -131,4 +133,5 @@ fn main(): void =>
     print("  POST /echo       - Echoes back request body\n")
     print("  GET  /stats      - Returns request statistics\n")
     print("  GET  /data/{n}   - Returns n bytes of data\n\n")
-    server.listen(8082)
+    var acceptFn: fn(): TcpStream = fn(): TcpStream => listener.accept()
+    server.serve(acceptFn, listener.port())

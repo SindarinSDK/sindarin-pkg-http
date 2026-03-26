@@ -13,6 +13,7 @@
 # ==============================================================================
 
 import "../../src/server"
+import "sindarin-pkg-sdk/src/net/tcp"
 
 # In-memory storage for items
 var items: Json
@@ -132,8 +133,9 @@ fn main(): void =>
     router.all("/items", handleItems)
     router.all("/items/*", handleItem)
 
-    # Create and start server
-    var server: HttpServer = HttpServer.new(router)
+    # Create listener and server
+    var listener: TcpListener = TcpListener.bind(":8081")
+    var server: HttpServer<TcpStream> = HttpServer<TcpStream>.new(router)
     print("API running at http://localhost:8081\n")
     print("Endpoints:\n")
     print("  GET    /items      - List all items\n")
@@ -141,4 +143,5 @@ fn main(): void =>
     print("  GET    /items/{id} - Get item\n")
     print("  PUT    /items/{id} - Update item\n")
     print("  DELETE /items/{id} - Delete item\n\n")
-    server.listen(8081)
+    var acceptFn: fn(): TcpStream = fn(): TcpStream => listener.accept()
+    server.serve(acceptFn, listener.port())

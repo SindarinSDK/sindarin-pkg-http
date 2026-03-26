@@ -19,7 +19,7 @@
 #   server.serve(acceptFn, listener.port())
 # ==============================================================================
 
-import "sindarin-pkg-sdk/src/net/stream"
+import "stream"
 import "request"
 import "response"
 import "router"

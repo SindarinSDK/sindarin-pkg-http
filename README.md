@@ -1,6 +1,6 @@
 # Sindarin HTTP
 
-A lightweight HTTP/1.1 server library for the [Sindarin](https://github.com/SindarinSDK/sindarin-compiler) programming language, providing request parsing, response building, routing, and multithreaded server capabilities.
+A lightweight HTTP/1.1 server library for the [Sindarin](https://github.com/SindarinSDK/sindarin-compiler) programming language, providing request parsing, response building, routing, and a generic multithreaded server that works with any transport (TCP, TLS, etc.).
 
 ## Installation
 
@@ -19,6 +19,7 @@ Then run `sn --install` to fetch the package.
 
 ```sindarin
 import "http/server"
+import "sindarin-pkg-sdk/src/net/tcp"
 
 fn homeHandler(req: HttpRequest): HttpResponse =>
     return HttpResponse.ok().html("<h1>Hello World!</h1>")
@@ -31,20 +32,10 @@ fn main(): void =>
     router.get("/", homeHandler)
     router.get("/api/**", apiHandler)
 
-    var server: HttpServer = HttpServer.new(router)
-    server.listen(8080)
-```
-
-Or use the quick-start helper for simple servers:
-
-```sindarin
-import "http/server"
-
-fn handler(req: HttpRequest): HttpResponse =>
-    return HttpResponse.ok().text($"Hello! You requested: {req.path}")
-
-fn main(): void =>
-    HttpServer.serve(8080, handler)
+    var listener: TcpListener = TcpListener.bind(":8080")
+    var server: HttpServer<TcpStream> = HttpServer<TcpStream>.new(router)
+    var acceptFn: fn(): TcpStream = fn(): TcpStream => listener.accept()
+    server.serve(acceptFn, listener.port())
 ```
 
 ## Documentation
@@ -57,7 +48,8 @@ fn main(): void =>
 | Request | `import "http/request"` | HTTP request parsing and inspection |
 | Response | `import "http/response"` | HTTP response building with fluent API |
 | Router | `import "http/router"` | URL routing with pattern matching |
-| Server | `import "http/server"` | Multithreaded TCP server |
+| Stream | `import "http/stream"` | `NetStream` interface for generic transport |
+| Server | `import "http/server"` | Generic multithreaded HTTP server |
 
 ### Status
 
@@ -189,20 +181,43 @@ var response: HttpResponse = router.handle(request)
 
 ### Server
 
-Full HTTP server with TCP networking and statistics.
+Generic HTTP server parameterized over any `NetStream` transport (TCP, TLS, etc.).
 
 ```sindarin
 import "http/server"
+import "sindarin-pkg-sdk/src/net/tcp"
 
-var server: HttpServer = HttpServer.new(router)
-server.setHost("0.0.0.0")
-server.setPort(8080)
-server.setMaxRequestSize(1048576)  // 1MB
-server.listen(8080)
+# Create router and listener
+var router: Router = Router.new()
+router.get("/", homeHandler)
 
-var stats: ServerStats = HttpServer.stats()
+var listener: TcpListener = TcpListener.bind(":8080")
+var server: HttpServer<TcpStream> = HttpServer<TcpStream>.new(router)
+
+# Serve with an accept callback
+var acceptFn: fn(): TcpStream = fn(): TcpStream => listener.accept()
+server.serve(acceptFn, listener.port())
+```
+
+#### HTTPS with TLS
+
+```sindarin
+import "http/server"
+import "sindarin-pkg-sdk/src/net/tls"
+
+var listener: TlsListener = TlsListener.bind(":8443", "cert.pem", "key.pem")
+var server: HttpServer<TlsStream> = HttpServer<TlsStream>.new(router)
+var acceptFn: fn(): TlsStream = fn(): TlsStream => listener.accept()
+server.serve(acceptFn, listener.port())
+```
+
+#### Server Statistics
+
+```sindarin
+var stats: ServerStats = HttpServer<TcpStream>.stats()
 stats.totalRequests
 stats.activeConnections
+stats.totalErrors
 ```
 
 ## Development

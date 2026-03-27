@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Phony targets
 #------------------------------------------------------------------------------
-.PHONY: all test clean help examples benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin benchmark-sindarin-no-asan benchmark-sindarin-profile benchmark-sindarin-massif
+.PHONY: all test hooks clean help examples benchmark benchmark-build benchmark-clean benchmark-prereqs benchmark-sindarin benchmark-sindarin-no-asan benchmark-sindarin-profile benchmark-sindarin-massif
 
 # Disable implicit rules for .sn.c files (these are compiled by the Sindarin compiler)
 %.sn: %.sn.c
@@ -56,7 +56,7 @@ all: test
 #------------------------------------------------------------------------------
 # test - Run SDK tests using compiled Sindarin test runner
 #------------------------------------------------------------------------------
-test: $(RUN_TESTS_BIN)
+test: hooks $(RUN_TESTS_BIN)
 	@$(RUN_TESTS_BIN)
 
 #------------------------------------------------------------------------------
@@ -80,6 +80,12 @@ clean:
 #------------------------------------------------------------------------------
 # help - Show available targets
 #------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+# hooks - Configure git to use tracked pre-commit hooks
+#------------------------------------------------------------------------------
+hooks:
+	@git config core.hooksPath .githooks 2>/dev/null || true
+
 help:
 	@echo "Sindarin HTTP Package"
 	@echo ""

@@ -6,8 +6,8 @@
 # ==============================================================================
 
 interface NetStream =>
-    fn read(maxBytes: int): byte[]
-    fn write(data: byte[]): int
-    fn remoteAddress(): str
-    fn isValid(): bool
-    fn dispose(): void
+  fn read(maxBytes: int): byte[]
+  fn write(data: byte[]): int
+  fn remoteAddress(): str
+  fn isValid(): bool
+  fn dispose(): void

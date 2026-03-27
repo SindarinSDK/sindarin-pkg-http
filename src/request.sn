@@ -4,190 +4,200 @@
 # Parses HTTP/1.1 requests from raw data.
 #
 # Usage:
-#   import "request"
+# import "request"
 #
-#   var req: HttpRequest = HttpRequest.parse(rawData)
-#   print($"Method: {req.method}\n")
-#   print($"Path: {req.path}\n")
-#   var contentType: str = req.getHeader("Content-Type")
+# var req: HttpRequest = HttpRequest.parse(rawData)
+# print($"Method: {req.method}\n")
+# print($"Path: {req.path}\n")
+# var contentType: str = req.getHeader("Content-Type")
 # ==============================================================================
-
 
 # ==============================================================================
 # Header Structure
 # ==============================================================================
 
 struct Header =>
-    name: str
-    value: str
+  name: str
+  value: str
 
 # ==============================================================================
 # HttpRequest Structure
 # ==============================================================================
 
 struct HttpRequest =>
-    method: str
-    path: str
-    query: str
-    version: str
-    headers: Header[]
-    body: str
-    raw: str
+  method: str
+  path: str
+  query: str
+  version: str
+  headers: Header[]
+  body: str
+  raw: str
 
-    # ==========================================================================
-    # Static Factory Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Static Factory Methods
+  # ==========================================================================
 
-    static fn parse(data: str): HttpRequest =>
-        var req: HttpRequest = HttpRequest { method: "", path: "", query: "", version: "", headers: {}, body: "", raw: copyOf(data) }
+  static fn parse(data: str): HttpRequest =>
+    var req: HttpRequest = HttpRequest {
+      method: "",
+      path: "",
+      query: "",
+      version: "",
+      headers: {},
+      body: "",
+      raw: copyOf(data)
+    }
 
-        var normalized: str = data.replace("\r\n", "\n")
-        var lines: str[] = normalized.split("\n")
+    var normalized: str = data.replace("\r\n", "\n")
+    var lines: str[] = normalized.split("\n")
 
-        if lines.length == 0 =>
-            return req
+    if lines.length == 0 =>
+      return req
 
-        var requestLine: str = lines[0]
-        var parts: str[] = requestLine.split(" ")
+    var requestLine: str = lines[0]
+    var parts: str[] = requestLine.split(" ")
 
-        if parts.length >= 1 =>
-            req.method = parts[0]
+    if parts.length >= 1 =>
+      req.method = parts[0]
 
-        if parts.length >= 2 =>
-            var fullPath: str = parts[1]
-            var qIndex: int = fullPath.indexOf("?")
-            if qIndex >= 0 =>
-                req.path = fullPath.substring(0, qIndex)
-                req.query = fullPath.substring(qIndex + 1, fullPath.length)
-            else =>
-                req.path = fullPath
+    if parts.length >= 2 =>
+      var fullPath: str = parts[1]
+      var qIndex: int = fullPath.indexOf("?")
+      if qIndex >= 0 =>
+        req.path = fullPath.substring(0, qIndex)
+        req.query = fullPath.substring(qIndex + 1, fullPath.length)
+      else =>
+        req.path = fullPath
 
-        if parts.length >= 3 =>
-            req.version = parts[2]
+    if parts.length >= 3 =>
+      req.version = parts[2]
 
-        var headersDone: bool = false
-        var bodyStartIndex: int = 1
+    var headersDone: bool = false
+    var bodyStartIndex: int = 1
 
-        for var i: int = 1; i < lines.length; i++ =>
-            var line: str = lines[i]
+    for var i: int = 1; i < lines.length; i++ =>
+      var line: str = lines[i]
 
-            if line.trim() == "" =>
-                headersDone = true
-                bodyStartIndex = i + 1
-                break
+      if line.trim() == "" =>
+        headersDone = true
+        bodyStartIndex = i + 1
+        break
 
-            var colonIndex: int = line.indexOf(":")
-            if colonIndex > 0 =>
-                var name: str = line.substring(0, colonIndex).trim()
-                var value: str = line.substring(colonIndex + 1, line.length).trim()
-                req.headers.push(Header { name: copyOf(name), value: copyOf(value) })
+      var colonIndex: int = line.indexOf(":")
+      if colonIndex > 0 =>
+        var name: str = line.substring(0, colonIndex).trim()
+        var value: str = line.substring(colonIndex + 1, line.length).trim()
+        req.headers.push(Header {
+          name: copyOf(name),
+          value: copyOf(value)
+        })
 
-        if headersDone && bodyStartIndex < lines.length =>
-            var bodyLines: str[] = {}
-            for var i: int = bodyStartIndex; i < lines.length; i++ =>
-                bodyLines.push(lines[i])
-            req.body = bodyLines.join("\n")
+    if headersDone && bodyStartIndex < lines.length =>
+      var bodyLines: str[] = {}
+      for var i: int = bodyStartIndex; i < lines.length; i++ =>
+        bodyLines.push(lines[i])
+      req.body = bodyLines.join("\n")
 
-        return req
+    return req
 
-    # ==========================================================================
-    # Header Access Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Header Access Methods
+  # ==========================================================================
 
-    fn getHeader(name: str): str =>
-        var lowerName: str = name.toLower()
-        for h in self.headers =>
-            if h.name.toLower() == lowerName =>
-                return h.value
+  fn getHeader(name: str): str =>
+    var lowerName: str = name.toLower()
+    for h in self.headers =>
+      if h.name.toLower() == lowerName =>
+        return h.value
+    return ""
+
+  fn hasHeader(name: str): bool =>
+    var lowerName: str = name.toLower()
+    for h in self.headers =>
+      if h.name.toLower() == lowerName =>
+        return true
+    return false
+
+  # ==========================================================================
+  # Query String Methods
+  # ==========================================================================
+
+  fn queryParam(name: str): str =>
+    if self.query == "" =>
+      return ""
+
+    var pairs: str[] = self.query.split("&")
+    for pair in pairs =>
+      var eqIndex: int = pair.indexOf("=")
+      if eqIndex > 0 =>
+        var key: str = pair.substring(0, eqIndex)
+        if key == name =>
+          return pair.substring(eqIndex + 1, pair.length)
+      else if pair == name =>
         return ""
+    return ""
 
-    fn hasHeader(name: str): bool =>
-        var lowerName: str = name.toLower()
-        for h in self.headers =>
-            if h.name.toLower() == lowerName =>
-                return true
-        return false
+  fn hasQueryParam(name: str): bool =>
+    if self.query == "" =>
+      return false
 
-    # ==========================================================================
-    # Query String Methods
-    # ==========================================================================
+    var pairs: str[] = self.query.split("&")
+    for pair in pairs =>
+      var eqIndex: int = pair.indexOf("=")
+      if eqIndex > 0 =>
+        var key: str = pair.substring(0, eqIndex)
+        if key == name =>
+          return true
+      else if pair == name =>
+        return true
+    return false
 
-    fn queryParam(name: str): str =>
-        if self.query == "" =>
-            return ""
+  # ==========================================================================
+  # Content Methods
+  # ==========================================================================
 
-        var pairs: str[] = self.query.split("&")
-        for pair in pairs =>
-            var eqIndex: int = pair.indexOf("=")
-            if eqIndex > 0 =>
-                var key: str = pair.substring(0, eqIndex)
-                if key == name =>
-                    return pair.substring(eqIndex + 1, pair.length)
-            else if pair == name =>
-                return ""
-        return ""
+  fn contentType(): str =>
+    return self.getHeader("Content-Type")
 
-    fn hasQueryParam(name: str): bool =>
-        if self.query == "" =>
-            return false
+  fn contentLength(): int =>
+    var lenStr: str = self.getHeader("Content-Length")
+    if lenStr == "" =>
+      return 0
+    return lenStr.toInt()
 
-        var pairs: str[] = self.query.split("&")
-        for pair in pairs =>
-            var eqIndex: int = pair.indexOf("=")
-            if eqIndex > 0 =>
-                var key: str = pair.substring(0, eqIndex)
-                if key == name =>
-                    return true
-            else if pair == name =>
-                return true
-        return false
+  fn hasBody(): bool =>
+    return self.body.length > 0
 
-    # ==========================================================================
-    # Content Methods
-    # ==========================================================================
+  # ==========================================================================
+  # JSON Methods
+  # ==========================================================================
 
-    fn contentType(): str =>
-        return self.getHeader("Content-Type")
+  # Check if the request has a JSON content type
+  fn isJson(): bool =>
+    var ct: str = self.contentType().toLower()
+    return ct.startsWith("application/json")
 
-    fn contentLength(): int =>
-        var lenStr: str = self.getHeader("Content-Length")
-        if lenStr == "" =>
-            return 0
-        return lenStr.toInt()
+  # ==========================================================================
+  # Method Helpers
+  # ==========================================================================
 
-    fn hasBody(): bool =>
-        return self.body.length > 0
+  fn isGet(): bool =>
+    return self.method == "GET"
 
-    # ==========================================================================
-    # JSON Methods
-    # ==========================================================================
+  fn isPost(): bool =>
+    return self.method == "POST"
 
-    # Check if the request has a JSON content type
-    fn isJson(): bool =>
-        var ct: str = self.contentType().toLower()
-        return ct.startsWith("application/json")
+  fn isPut(): bool =>
+    return self.method == "PUT"
 
-    # ==========================================================================
-    # Method Helpers
-    # ==========================================================================
+  fn isDelete(): bool =>
+    return self.method == "DELETE"
 
-    fn isGet(): bool =>
-        return self.method == "GET"
+  fn isPatch(): bool =>
+    return self.method == "PATCH"
 
-    fn isPost(): bool =>
-        return self.method == "POST"
+  fn isHead(): bool =>
+    return self.method == "HEAD"
 
-    fn isPut(): bool =>
-        return self.method == "PUT"
-
-    fn isDelete(): bool =>
-        return self.method == "DELETE"
-
-    fn isPatch(): bool =>
-        return self.method == "PATCH"
-
-    fn isHead(): bool =>
-        return self.method == "HEAD"
-
-    fn isOptions(): bool =>
-        return self.method == "OPTIONS"
+  fn isOptions(): bool =>
+    return self.method == "OPTIONS"

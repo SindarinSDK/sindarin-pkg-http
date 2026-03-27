@@ -11,145 +11,160 @@ import "status"
 # ==============================================================================
 
 struct ResponseHeader =>
-    name: str
-    value: str
+  name: str
+  value: str
 
 # ==============================================================================
 # HttpResponse Structure
 # ==============================================================================
 
 struct HttpResponse =>
-    statusCode: int
-    statusText: str
-    version: str
-    headers: ResponseHeader[]
-    body: str
+  statusCode: int
+  statusText: str
+  version: str
+  headers: ResponseHeader[]
+  body: str
 
-    # ==========================================================================
-    # Static Factory Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Static Factory Methods
+  # ==========================================================================
 
-    static fn new(code: int): HttpResponse =>
-        var res: HttpResponse = HttpResponse { statusCode: code, statusText: HttpStatus.text(code), version: "HTTP/1.1", headers: {}, body: "" }
-        return res
+  static fn new(code: int): HttpResponse =>
+    var res: HttpResponse = HttpResponse {
+      statusCode: code,
+      statusText: HttpStatus.text(code),
+      version: "HTTP/1.1",
+      headers: {},
+      body: ""
+    }
+    return res
 
-    # ==========================================================================
-    # Common Status Factory Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Common Status Factory Methods
+  # ==========================================================================
 
-    static fn ok(): HttpResponse =>
-        return HttpResponse.new(200)
+  static fn ok(): HttpResponse =>
+    return HttpResponse.new(200)
 
-    static fn created(): HttpResponse =>
-        return HttpResponse.new(201)
+  static fn created(): HttpResponse =>
+    return HttpResponse.new(201)
 
-    static fn noContent(): HttpResponse =>
-        return HttpResponse.new(204)
+  static fn noContent(): HttpResponse =>
+    return HttpResponse.new(204)
 
-    static fn badRequest(): HttpResponse =>
-        return HttpResponse.new(400)
+  static fn badRequest(): HttpResponse =>
+    return HttpResponse.new(400)
 
-    static fn unauthorized(): HttpResponse =>
-        return HttpResponse.new(401)
+  static fn unauthorized(): HttpResponse =>
+    return HttpResponse.new(401)
 
-    static fn forbidden(): HttpResponse =>
-        return HttpResponse.new(403)
+  static fn forbidden(): HttpResponse =>
+    return HttpResponse.new(403)
 
-    static fn notFound(): HttpResponse =>
-        return HttpResponse.new(404)
+  static fn notFound(): HttpResponse =>
+    return HttpResponse.new(404)
 
-    static fn methodNotAllowed(): HttpResponse =>
-        return HttpResponse.new(405)
+  static fn methodNotAllowed(): HttpResponse =>
+    return HttpResponse.new(405)
 
-    static fn internalServerError(): HttpResponse =>
-        return HttpResponse.new(500)
+  static fn internalServerError(): HttpResponse =>
+    return HttpResponse.new(500)
 
-    # ==========================================================================
-    # Builder Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Builder Methods
+  # ==========================================================================
 
-    fn setHeader(name: str, value: str): HttpResponse =>
-        var lowerName: str = name.toLower()
-        var newHeaders: ResponseHeader[] = {}
-        for h in self.headers =>
-            if h.name.toLower() != lowerName =>
-                newHeaders.push(ResponseHeader { name: copyOf(h.name), value: copyOf(h.value) })
-        newHeaders.push(ResponseHeader { name: copyOf(name), value: copyOf(value) })
-        self.headers = copyOf(newHeaders)
-        return self
+  fn setHeader(name: str, value: str): HttpResponse =>
+    var lowerName: str = name.toLower()
+    var newHeaders: ResponseHeader[] = {}
+    for h in self.headers =>
+      if h.name.toLower() != lowerName =>
+        newHeaders.push(ResponseHeader {
+          name: copyOf(h.name),
+          value: copyOf(h.value)
+        })
+    newHeaders.push(ResponseHeader {
+      name: copyOf(name),
+      value: copyOf(value)
+    })
+    self.headers = copyOf(newHeaders)
+    return self
 
-    fn addHeader(name: str, value: str): HttpResponse =>
-        self.headers.push(ResponseHeader { name: copyOf(name), value: copyOf(value) })
-        return self
+  fn addHeader(name: str, value: str): HttpResponse =>
+    self.headers.push(ResponseHeader {
+      name: copyOf(name),
+      value: copyOf(value)
+    })
+    return self
 
-    fn setBody(content: str): HttpResponse =>
-        self.body = content
-        return self
+  fn setBody(content: str): HttpResponse =>
+    self.body = content
+    return self
 
-    # ==========================================================================
-    # Content-Type Helpers
-    # ==========================================================================
+  # ==========================================================================
+  # Content-Type Helpers
+  # ==========================================================================
 
-    fn html(content: str): HttpResponse =>
-        self.setHeader("Content-Type", "text/html; charset=utf-8")
-        self.body = content
-        return self
+  fn html(content: str): HttpResponse =>
+    self.setHeader("Content-Type", "text/html; charset=utf-8")
+    self.body = content
+    return self
 
-    fn text(content: str): HttpResponse =>
-        self.setHeader("Content-Type", "text/plain; charset=utf-8")
-        self.body = content
-        return self
+  fn text(content: str): HttpResponse =>
+    self.setHeader("Content-Type", "text/plain; charset=utf-8")
+    self.body = content
+    return self
 
-    fn json(content: str): HttpResponse =>
-        self.setHeader("Content-Type", "application/json; charset=utf-8")
-        self.body = content
-        return self
+  fn json(content: str): HttpResponse =>
+    self.setHeader("Content-Type", "application/json; charset=utf-8")
+    self.body = content
+    return self
 
-    # ==========================================================================
-    # Redirect Helpers
-    # ==========================================================================
+  # ==========================================================================
+  # Redirect Helpers
+  # ==========================================================================
 
-    static fn redirect(location: str): HttpResponse =>
-        var res: HttpResponse = HttpResponse.new(302)
-        res.setHeader("Location", location)
-        return res
+  static fn redirect(location: str): HttpResponse =>
+    var res: HttpResponse = HttpResponse.new(302)
+    res.setHeader("Location", location)
+    return res
 
-    # ==========================================================================
-    # Header Access Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Header Access Methods
+  # ==========================================================================
 
-    fn getHeader(name: str): str =>
-        var lowerName: str = name.toLower()
-        for h in self.headers =>
-            if h.name.toLower() == lowerName =>
-                return h.value
-        return ""
+  fn getHeader(name: str): str =>
+    var lowerName: str = name.toLower()
+    for h in self.headers =>
+      if h.name.toLower() == lowerName =>
+        return h.value
+    return ""
 
-    fn hasHeader(name: str): bool =>
-        var lowerName: str = name.toLower()
-        for h in self.headers =>
-            if h.name.toLower() == lowerName =>
-                return true
-        return false
+  fn hasHeader(name: str): bool =>
+    var lowerName: str = name.toLower()
+    for h in self.headers =>
+      if h.name.toLower() == lowerName =>
+        return true
+    return false
 
-    # ==========================================================================
-    # Serialization Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Serialization Methods
+  # ==========================================================================
 
-    fn toString(): str =>
-        var result: str = ""
-        result = $"{self.version} {self.statusCode} {self.statusText}\r\n"
+  fn toString(): str =>
+    var result: str = ""
+    result = $"{self.version} {self.statusCode} {self.statusText}\r\n"
 
-        if self.body.length > 0 && !self.hasHeader("Content-Length") =>
-            result = result + $"Content-Length: {self.body.length}\r\n"
+    if self.body.length > 0 && !self.hasHeader("Content-Length") =>
+      result = result + $"Content-Length: {self.body.length}\r\n"
 
-        for h in self.headers =>
-            result = result + $"{h.name}: {h.value}\r\n"
+    for h in self.headers =>
+      result = result + $"{h.name}: {h.value}\r\n"
 
-        result = result + "\r\n"
-        result = result + self.body
+    result = result + "\r\n"
+    result = result + self.body
 
-        return result
+    return result
 
-    fn toBytes(): byte[] =>
-        return self.toString().toBytes()
+  fn toBytes(): byte[] =>
+    return self.toString().toBytes()

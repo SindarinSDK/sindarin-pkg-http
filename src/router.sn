@@ -12,159 +12,159 @@ import "response"
 # ==============================================================================
 
 fn defaultNotFoundHandler(req: HttpRequest): HttpResponse =>
-    var res: HttpResponse = HttpResponse.notFound()
-    return res.text($"404 Not Found: {req.path}")
+  var res: HttpResponse = HttpResponse.notFound()
+  return res.text($"404 Not Found: {req.path}")
 
 fn defaultMethodNotAllowedHandler(req: HttpRequest): HttpResponse =>
-    var res: HttpResponse = HttpResponse.methodNotAllowed()
-    return res.text($"405 Method Not Allowed: {req.method} {req.path}")
+  var res: HttpResponse = HttpResponse.methodNotAllowed()
+  return res.text($"405 Method Not Allowed: {req.method} {req.path}")
 
 # ==============================================================================
 # Route Structure
 # ==============================================================================
 
 struct Route =>
-    method: str
-    pattern: str
-    handler: fn(HttpRequest): HttpResponse
+  method: str
+  pattern: str
+  handler: fn(HttpRequest): HttpResponse
 
 # ==============================================================================
 # Router Structure
 # ==============================================================================
 
 struct Router =>
-    routes: Route[]
-    notFoundHandler: fn(HttpRequest): HttpResponse
-    methodNotAllowedHandler: fn(HttpRequest): HttpResponse
+  routes: Route[]
+  notFoundHandler: fn(HttpRequest): HttpResponse
+  methodNotAllowedHandler: fn(HttpRequest): HttpResponse
 
-    static fn new(): Router =>
-        return Router {
-            routes: {},
-            notFoundHandler: defaultNotFoundHandler,
-            methodNotAllowedHandler: defaultMethodNotAllowedHandler
-        }
+  static fn new(): Router =>
+    return Router {
+      routes: {},
+      notFoundHandler: defaultNotFoundHandler,
+      methodNotAllowedHandler: defaultMethodNotAllowedHandler
+    }
 
-    fn route(method: str, path: str, handler: fn(HttpRequest): HttpResponse): Router =>
-        self.routes.push(Route {
-            method: method.toUpper(),
-            pattern: copyOf(path),
-            handler: handler
-        })
-        return self
+  fn route(method: str, path: str, handler: fn(HttpRequest): HttpResponse): Router =>
+    self.routes.push(Route {
+      method: method.toUpper(),
+      pattern: copyOf(path),
+      handler: handler
+    })
+    return self
 
-    fn get(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
-        return self.route("GET", path, handler)
+  fn get(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
+    return self.route("GET", path, handler)
 
-    fn post(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
-        return self.route("POST", path, handler)
+  fn post(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
+    return self.route("POST", path, handler)
 
-    fn put(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
-        return self.route("PUT", path, handler)
+  fn put(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
+    return self.route("PUT", path, handler)
 
-    fn delete(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
-        return self.route("DELETE", path, handler)
+  fn delete(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
+    return self.route("DELETE", path, handler)
 
-    fn patch(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
-        return self.route("PATCH", path, handler)
+  fn patch(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
+    return self.route("PATCH", path, handler)
 
-    fn head(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
-        return self.route("HEAD", path, handler)
+  fn head(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
+    return self.route("HEAD", path, handler)
 
-    fn options(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
-        return self.route("OPTIONS", path, handler)
+  fn options(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
+    return self.route("OPTIONS", path, handler)
 
-    fn all(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
-        return self.route("*", path, handler)
+  fn all(path: str, handler: fn(HttpRequest): HttpResponse): Router =>
+    return self.route("*", path, handler)
 
-    fn setNotFoundHandler(handler: fn(HttpRequest): HttpResponse): Router =>
-        self.notFoundHandler = handler
-        return self
+  fn setNotFoundHandler(handler: fn(HttpRequest): HttpResponse): Router =>
+    self.notFoundHandler = handler
+    return self
 
-    fn setMethodNotAllowedHandler(handler: fn(HttpRequest): HttpResponse): Router =>
-        self.methodNotAllowedHandler = handler
-        return self
+  fn setMethodNotAllowedHandler(handler: fn(HttpRequest): HttpResponse): Router =>
+    self.methodNotAllowedHandler = handler
+    return self
 
-    fn handle(req: HttpRequest): HttpResponse =>
-        var pathMatches: bool = false
+  fn handle(req: HttpRequest): HttpResponse =>
+    var pathMatches: bool = false
 
-        for route in self.routes =>
-            if matchPath(route.pattern, req.path) =>
-                pathMatches = true
-                if route.method == "*" || route.method == req.method =>
-                    return route.handler(req)
+    for route in self.routes =>
+      if matchPath(route.pattern, req.path) =>
+        pathMatches = true
+        if route.method == "*" || route.method == req.method =>
+          return route.handler(req)
 
-        if pathMatches =>
-            return self.methodNotAllowedHandler(req)
+    if pathMatches =>
+      return self.methodNotAllowedHandler(req)
 
-        return self.notFoundHandler(req)
+    return self.notFoundHandler(req)
 
-    fn allowedMethods(path: str): str[] =>
-        var methods: str[] = {}
-        for route in self.routes =>
-            if matchPath(route.pattern, path) =>
-                if route.method == "*" =>
-                    return {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}
-                var found: bool = false
-                for m in methods =>
-                    if m == route.method =>
-                        found = true
-                        break
-                if !found =>
-                    methods.push(route.method)
-        return methods
+  fn allowedMethods(path: str): str[] =>
+    var methods: str[] = {}
+    for route in self.routes =>
+      if matchPath(route.pattern, path) =>
+        if route.method == "*" =>
+          return {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}
+        var found: bool = false
+        for m in methods =>
+          if m == route.method =>
+            found = true
+            break
+        if !found =>
+          methods.push(route.method)
+    return methods
 
 # ==============================================================================
 # Path Matching
 # ==============================================================================
 
 fn matchPath(pattern: str, path: str): bool =>
-    var p: str = normalizePath(pattern)
-    var r: str = normalizePath(path)
+  var p: str = normalizePath(pattern)
+  var r: str = normalizePath(path)
 
-    if p == r =>
-        return true
-
-    if p.endsWith("/**") =>
-        var prefix: str = p.substring(0, p.length - 3)
-        return r.startsWith(prefix)
-
-    if p.endsWith("/*") =>
-        var prefix: str = p.substring(0, p.length - 2)
-        if !r.startsWith(prefix) =>
-            return false
-        var suffix: str = r.substring(prefix.length, r.length)
-        if suffix == "/" || suffix == "" =>
-            return true
-        # Skip leading slash and check for additional slashes
-        if suffix.startsWith("/") =>
-            suffix = suffix.substring(1, suffix.length)
-        return !suffix.contains("/")
-
-    var patternParts: str[] = p.split("/")
-    var pathParts: str[] = r.split("/")
-
-    if patternParts.length != pathParts.length =>
-        return false
-
-    for var i: int = 0; i < patternParts.length; i++ =>
-        var pp: str = patternParts[i]
-        var rp: str = pathParts[i]
-
-        if pp == "*" =>
-            continue
-
-        if pp != rp =>
-            return false
-
+  if p == r =>
     return true
 
+  if p.endsWith("/**") =>
+    var prefix: str = p.substring(0, p.length - 3)
+    return r.startsWith(prefix)
+
+  if p.endsWith("/*") =>
+    var prefix: str = p.substring(0, p.length - 2)
+    if !r.startsWith(prefix) =>
+      return false
+    var suffix: str = r.substring(prefix.length, r.length)
+    if suffix == "/" || suffix == "" =>
+      return true
+    # Skip leading slash and check for additional slashes
+    if suffix.startsWith("/") =>
+      suffix = suffix.substring(1, suffix.length)
+    return !suffix.contains("/")
+
+  var patternParts: str[] = p.split("/")
+  var pathParts: str[] = r.split("/")
+
+  if patternParts.length != pathParts.length =>
+    return false
+
+  for var i: int = 0; i < patternParts.length; i++ =>
+    var pp: str = patternParts[i]
+    var rp: str = pathParts[i]
+
+    if pp == "*" =>
+      continue
+
+    if pp != rp =>
+      return false
+
+  return true
+
 fn normalizePath(path: str): str =>
-    var p: str = path
+  var p: str = path
 
-    if !p.startsWith("/") =>
-        p = "/" + p
+  if !p.startsWith("/") =>
+    p = "/" + p
 
-    if p.length > 1 && p.endsWith("/") =>
-        p = p.substring(0, p.length - 1)
+  if p.length > 1 && p.endsWith("/") =>
+    p = p.substring(0, p.length - 1)
 
-    return p
+  return p

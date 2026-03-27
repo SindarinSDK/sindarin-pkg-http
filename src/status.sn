@@ -4,13 +4,13 @@
 # Standard HTTP/1.1 status codes and reason phrases.
 #
 # Usage:
-#   import "status"
+# import "status"
 #
-#   var text: str = HttpStatus.text(200)  # "OK"
-#   var ok: bool = HttpStatus.isSuccess(200)
+# var text: str = HttpStatus.text(200)  # "OK"
+# var ok: bool = HttpStatus.isSuccess(200)
 #
-#   # Status code constants
-#   var code: int = STATUS_OK  # 200
+# # Status code constants
+# var code: int = STATUS_OK  # 200
 # ==============================================================================
 
 # ==============================================================================
@@ -76,68 +76,68 @@ var STATUS_HTTP_VERSION_NOT_SUPPORTED: int = 505
 
 struct HttpStatus =>
 
-    # ==========================================================================
-    # Text Lookup
-    # ==========================================================================
+  # ==========================================================================
+  # Text Lookup
+  # ==========================================================================
 
-    static fn text(code: int): str =>
-        var result: str = match code =>
-            100 => "Continue"
-            101 => "Switching Protocols"
-            200 => "OK"
-            201 => "Created"
-            202 => "Accepted"
-            204 => "No Content"
-            205 => "Reset Content"
-            206 => "Partial Content"
-            301 => "Moved Permanently"
-            302 => "Found"
-            303 => "See Other"
-            304 => "Not Modified"
-            307 => "Temporary Redirect"
-            308 => "Permanent Redirect"
-            400 => "Bad Request"
-            401 => "Unauthorized"
-            403 => "Forbidden"
-            404 => "Not Found"
-            405 => "Method Not Allowed"
-            406 => "Not Acceptable"
-            408 => "Request Timeout"
-            409 => "Conflict"
-            410 => "Gone"
-            411 => "Length Required"
-            413 => "Payload Too Large"
-            414 => "URI Too Long"
-            415 => "Unsupported Media Type"
-            422 => "Unprocessable Entity"
-            429 => "Too Many Requests"
-            500 => "Internal Server Error"
-            501 => "Not Implemented"
-            502 => "Bad Gateway"
-            503 => "Service Unavailable"
-            504 => "Gateway Timeout"
-            505 => "HTTP Version Not Supported"
-            else => "Unknown"
-        return result
+  static fn text(code: int): str =>
+    var result: str = match code =>
+      100 => "Continue"
+      101 => "Switching Protocols"
+      200 => "OK"
+      201 => "Created"
+      202 => "Accepted"
+      204 => "No Content"
+      205 => "Reset Content"
+      206 => "Partial Content"
+      301 => "Moved Permanently"
+      302 => "Found"
+      303 => "See Other"
+      304 => "Not Modified"
+      307 => "Temporary Redirect"
+      308 => "Permanent Redirect"
+      400 => "Bad Request"
+      401 => "Unauthorized"
+      403 => "Forbidden"
+      404 => "Not Found"
+      405 => "Method Not Allowed"
+      406 => "Not Acceptable"
+      408 => "Request Timeout"
+      409 => "Conflict"
+      410 => "Gone"
+      411 => "Length Required"
+      413 => "Payload Too Large"
+      414 => "URI Too Long"
+      415 => "Unsupported Media Type"
+      422 => "Unprocessable Entity"
+      429 => "Too Many Requests"
+      500 => "Internal Server Error"
+      501 => "Not Implemented"
+      502 => "Bad Gateway"
+      503 => "Service Unavailable"
+      504 => "Gateway Timeout"
+      505 => "HTTP Version Not Supported"
+      else => "Unknown"
+    return result
 
-    # ==========================================================================
-    # Category Helpers
-    # ==========================================================================
+  # ==========================================================================
+  # Category Helpers
+  # ==========================================================================
 
-    static fn isInformational(code: int): bool =>
-        return code >= 100 && code < 200
+  static fn isInformational(code: int): bool =>
+    return code >= 100 && code < 200
 
-    static fn isSuccess(code: int): bool =>
-        return code >= 200 && code < 300
+  static fn isSuccess(code: int): bool =>
+    return code >= 200 && code < 300
 
-    static fn isRedirect(code: int): bool =>
-        return code >= 300 && code < 400
+  static fn isRedirect(code: int): bool =>
+    return code >= 300 && code < 400
 
-    static fn isClientError(code: int): bool =>
-        return code >= 400 && code < 500
+  static fn isClientError(code: int): bool =>
+    return code >= 400 && code < 500
 
-    static fn isServerError(code: int): bool =>
-        return code >= 500 && code < 600
+  static fn isServerError(code: int): bool =>
+    return code >= 500 && code < 600
 
-    static fn isError(code: int): bool =>
-        return code >= 400
+  static fn isError(code: int): bool =>
+    return code >= 400

@@ -14,62 +14,62 @@ var testsFailed: int = 0
 
 # Assert function must be declared before main
 fn check(condition: bool, message: str): void =>
-    if !condition =>
-        print($"  FAIL: {message}\n")
-        testsFailed++
-    else =>
-        testsPassed++
+  if !condition =>
+    print($"  FAIL: {message}\n")
+    testsFailed++
+  else =>
+    testsPassed++
 
 fn main(): void =>
-    print("Testing HTTP Status Codes\n")
-    print("=========================\n\n")
+  print("Testing HTTP Status Codes\n")
+  print("=========================\n\n")
 
-    # Test status code constants
-    print("Testing status constants...\n")
-    check(STATUS_OK == 200, "STATUS_OK should be 200")
-    check(STATUS_CREATED == 201, "STATUS_CREATED should be 201")
-    check(STATUS_NOT_FOUND == 404, "STATUS_NOT_FOUND should be 404")
-    check(STATUS_INTERNAL_SERVER_ERROR == 500, "STATUS_INTERNAL_SERVER_ERROR should be 500")
-    print("  Status constants OK\n")
+  # Test status code constants
+  print("Testing status constants...\n")
+  check(STATUS_OK == 200, "STATUS_OK should be 200")
+  check(STATUS_CREATED == 201, "STATUS_CREATED should be 201")
+  check(STATUS_NOT_FOUND == 404, "STATUS_NOT_FOUND should be 404")
+  check(STATUS_INTERNAL_SERVER_ERROR == 500, "STATUS_INTERNAL_SERVER_ERROR should be 500")
+  print("  Status constants OK\n")
 
-    # Test HttpStatus.text()
-    print("Testing HttpStatus.text()...\n")
-    check(HttpStatus.text(200) == "OK", "HttpStatus.text(200) should be 'OK'")
-    check(HttpStatus.text(201) == "Created", "HttpStatus.text(201) should be 'Created'")
-    check(HttpStatus.text(404) == "Not Found", "HttpStatus.text(404) should be 'Not Found'")
-    check(HttpStatus.text(500) == "Internal Server Error", "HttpStatus.text(500) should be 'Internal Server Error'")
-    check(HttpStatus.text(999) == "Unknown", "HttpStatus.text(999) should be 'Unknown'")
-    print("  HttpStatus.text() OK\n")
+  # Test HttpStatus.text()
+  print("Testing HttpStatus.text()...\n")
+  check(HttpStatus.text(200) == "OK", "HttpStatus.text(200) should be 'OK'")
+  check(HttpStatus.text(201) == "Created", "HttpStatus.text(201) should be 'Created'")
+  check(HttpStatus.text(404) == "Not Found", "HttpStatus.text(404) should be 'Not Found'")
+  check(HttpStatus.text(500) == "Internal Server Error", "HttpStatus.text(500) should be 'Internal Server Error'")
+  check(HttpStatus.text(999) == "Unknown", "HttpStatus.text(999) should be 'Unknown'")
+  print("  HttpStatus.text() OK\n")
 
-    # Test category helpers
-    print("Testing category helpers...\n")
-    check(HttpStatus.isInformational(100) == true, "100 should be informational")
-    check(HttpStatus.isInformational(199) == true, "199 should be informational")
-    check(HttpStatus.isInformational(200) == false, "200 should not be informational")
+  # Test category helpers
+  print("Testing category helpers...\n")
+  check(HttpStatus.isInformational(100) == true, "100 should be informational")
+  check(HttpStatus.isInformational(199) == true, "199 should be informational")
+  check(HttpStatus.isInformational(200) == false, "200 should not be informational")
 
-    check(HttpStatus.isSuccess(200) == true, "200 should be success")
-    check(HttpStatus.isSuccess(299) == true, "299 should be success")
-    check(HttpStatus.isSuccess(300) == false, "300 should not be success")
+  check(HttpStatus.isSuccess(200) == true, "200 should be success")
+  check(HttpStatus.isSuccess(299) == true, "299 should be success")
+  check(HttpStatus.isSuccess(300) == false, "300 should not be success")
 
-    check(HttpStatus.isRedirect(301) == true, "301 should be redirect")
-    check(HttpStatus.isRedirect(307) == true, "307 should be redirect")
-    check(HttpStatus.isRedirect(400) == false, "400 should not be redirect")
+  check(HttpStatus.isRedirect(301) == true, "301 should be redirect")
+  check(HttpStatus.isRedirect(307) == true, "307 should be redirect")
+  check(HttpStatus.isRedirect(400) == false, "400 should not be redirect")
 
-    check(HttpStatus.isClientError(400) == true, "400 should be client error")
-    check(HttpStatus.isClientError(404) == true, "404 should be client error")
-    check(HttpStatus.isClientError(500) == false, "500 should not be client error")
+  check(HttpStatus.isClientError(400) == true, "400 should be client error")
+  check(HttpStatus.isClientError(404) == true, "404 should be client error")
+  check(HttpStatus.isClientError(500) == false, "500 should not be client error")
 
-    check(HttpStatus.isServerError(500) == true, "500 should be server error")
-    check(HttpStatus.isServerError(503) == true, "503 should be server error")
-    check(HttpStatus.isServerError(400) == false, "400 should not be server error")
+  check(HttpStatus.isServerError(500) == true, "500 should be server error")
+  check(HttpStatus.isServerError(503) == true, "503 should be server error")
+  check(HttpStatus.isServerError(400) == false, "400 should not be server error")
 
-    check(HttpStatus.isError(400) == true, "400 should be error")
-    check(HttpStatus.isError(500) == true, "500 should be error")
-    check(HttpStatus.isError(200) == false, "200 should not be error")
-    print("  Category helpers OK\n")
+  check(HttpStatus.isError(400) == true, "400 should be error")
+  check(HttpStatus.isError(500) == true, "500 should be error")
+  check(HttpStatus.isError(200) == false, "200 should not be error")
+  print("  Category helpers OK\n")
 
-    print($"\nTests passed: {testsPassed}, failed: {testsFailed}\n")
-    if testsFailed == 0 =>
-        print("All status tests passed!\n")
-    else =>
-        print("Some tests failed!\n")
+  print($"\nTests passed: {testsPassed}, failed: {testsFailed}\n")
+  if testsFailed == 0 =>
+    print("All status tests passed!\n")
+  else =>
+    print("Some tests failed!\n")

@@ -1,0 +1,39 @@
+import "../src/server"
+import "sindarin-pkg-sdk/src/net/tcp"
+import "sindarin-pkg-threads/src/shutdown_signal"
+
+fn handler(req: HttpRequest): HttpResponse =>
+    return HttpResponse.ok().text("hello")
+
+fn shutdownAfterDelay(sig: ShutdownSignal): void =>
+    # Send some requests first
+    for i in 0..10 =>
+        var conn: TcpStream = TcpStream.connect("127.0.0.1:9999")
+        conn.writeLine("GET / HTTP/1.1")
+        conn.writeLine("Host: localhost")
+        conn.writeLine("Connection: close")
+        conn.writeLine("")
+        var resp: byte[] = conn.readAll()
+        conn.dispose()
+    print($"Sent 10 requests, shutting down\n")
+    sig.signal()
+
+fn main(): void =>
+    var router: Router = Router.new()
+    router.get("/**", handler)
+
+    var sig: ShutdownSignal = ShutdownSignal.new()
+    var listener: TcpListener = TcpListener.bind(":9999")
+    var server: HttpServer<TcpStream> = HttpServer<TcpStream>.new(router)
+
+    # Spawn shutdown thread
+    &shutdownAfterDelay(sig)
+
+    # Serve with cancellable accept
+    var acceptFn: fn(): TcpStream = fn(): TcpStream => listener.acceptOrShutdown(sig.fd())
+    server.serve(acceptFn, listener.port())
+
+    # Clean exit
+    listener.dispose()
+    sig.dispose()
+    print("Server shut down cleanly\n")

@@ -100,6 +100,8 @@ struct HttpServer<S: NetStream> =>
 
         while self.running =>
             var client: S = accept()
+            if !client.isValid() =>
+                break
             activeConnections++
             &self.handleClient(client)
 

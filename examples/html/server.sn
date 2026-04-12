@@ -61,7 +61,7 @@ fn main(): void =>
 
   # Create listener and server
   var listener: TcpListener = TcpListener.bind(":8080")
-  var server: HttpServer < TcpStream > = HttpServer < TcpStream >.new(router)
+  var server: HttpServer<TcpStream> = HttpServer < TcpStream >.new(router)
   print("Serving content from examples/html/content/\n")
   print("Open http://localhost:8080 in your browser\n\n")
   var acceptFn: fn(): TcpStream = fn(): TcpStream => listener.accept()

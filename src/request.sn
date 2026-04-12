@@ -38,7 +38,7 @@ struct HttpRequest =>
   # ==========================================================================
 
   static fn parse(data: str): HttpRequest =>
-    var req: HttpRequest = HttpRequest {
+    var req: HttpRequest = {
       method: "",
       path: "",
       query: "",

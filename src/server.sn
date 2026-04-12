@@ -53,13 +53,25 @@ struct HttpServer < S: NetStream > =>
   # Static Factory Methods
   # ==========================================================================
 
-  static fn new(router: Router): HttpServer < S > =>
-    var server: HttpServer < S > = HttpServer < S > {router: router, host: "0.0.0.0", port: 8080, maxRequestSize: 1048576, running: false}
+  static fn new(router: Router): HttpServer<S> =>
+    var server: HttpServer<S> = {
+      router: router,
+      host: "0.0.0.0",
+      port: 8080,
+      maxRequestSize: 1048576,
+      running: false
+    }
     return server
 
   # Create with specific port
-  static fn onPort(router: Router, port: int): HttpServer < S > =>
-    var server: HttpServer < S > = HttpServer < S > {router: router, host: "0.0.0.0", port: port, maxRequestSize: 1048576, running: false}
+  static fn onPort(router: Router, port: int): HttpServer<S> =>
+    var server: HttpServer<S> = {
+      router: router,
+      host: "0.0.0.0",
+      port: port,
+      maxRequestSize: 1048576,
+      running: false
+    }
     return server
 
   # ==========================================================================
@@ -68,7 +80,7 @@ struct HttpServer < S: NetStream > =>
 
   # Get server statistics
   static fn stats(): ServerStats =>
-    var stats: ServerStats = ServerStats {
+    var stats: ServerStats = {
       totalRequests: totalRequests,
       activeConnections: activeConnections,
       totalErrors: totalErrors
@@ -79,15 +91,15 @@ struct HttpServer < S: NetStream > =>
   # Configuration Methods
   # ==========================================================================
 
-  fn setHost(host: str): HttpServer < S > =>
+  fn setHost(host: str): HttpServer<S> =>
     self.host = host
     return self
 
-  fn setPort(port: int): HttpServer < S > =>
+  fn setPort(port: int): HttpServer<S> =>
     self.port = port
     return self
 
-  fn setMaxRequestSize(size: int): HttpServer < S > =>
+  fn setMaxRequestSize(size: int): HttpServer<S> =>
     self.maxRequestSize = size
     return self
 

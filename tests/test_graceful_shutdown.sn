@@ -24,7 +24,7 @@ fn main(): void =>
 
   var sig: ShutdownSignal = ShutdownSignal.new()
   var listener: TcpListener = TcpListener.bind(":9999")
-  var server: HttpServer < TcpStream > = HttpServer < TcpStream >.new(router)
+  var server: HttpServer<TcpStream> = HttpServer < TcpStream >.new(router)
 
   # Spawn shutdown thread
   & shutdownAfterDelay(sig)

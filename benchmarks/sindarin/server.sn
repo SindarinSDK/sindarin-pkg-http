@@ -164,6 +164,6 @@ fn main(): void =>
 
   # Create listener and server
   var listener: TcpListener = TcpListener.bind(":8081")
-  var server: HttpServer < TcpStream > = HttpServer < TcpStream >.new(router)
+  var server: HttpServer<TcpStream> = HttpServer < TcpStream >.new(router)
   var acceptFn: fn(): TcpStream = fn(): TcpStream => listener.accept()
   server.serve(acceptFn, listener.port())

@@ -125,7 +125,7 @@ fn main(): void =>
 
   # Create listener and server
   var listener: TcpListener = TcpListener.bind(":8082")
-  var server: HttpServer < TcpStream > = HttpServer < TcpStream >.new(router)
+  var server: HttpServer<TcpStream> = HttpServer < TcpStream >.new(router)
   print("Server running at http://localhost:8082\n")
   print("Endpoints:\n")
   print("  GET  /ping       - Returns 'pong'\n")

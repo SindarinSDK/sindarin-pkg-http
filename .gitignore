@@ -1,23 +1,8 @@
 .sn/
-*.exe
 bin/
-
-# Benchmark artifacts
-benchmarks/results/
-benchmarks/c/server
-benchmarks/rust/target/
-benchmarks/rust/Cargo.lock
-benchmarks/go/server
-benchmarks/java/out/
-benchmarks/java/target/
-benchmarks/java/dependency-reduced-pom.xml
-benchmarks/csharp/out/
-benchmarks/csharp/bin/
-benchmarks/csharp/obj/
-benchmarks/nodejs/node_modules/
-sindarin-pkg-http.sln
-
-# Python
-__pycache__/
-*.pyc
-benchmarks/python/.venv/
+libs/
+vcpkg/
+*.exe
+*.o
+*.so
+*.a

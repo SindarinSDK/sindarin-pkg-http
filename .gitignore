@@ -6,3 +6,14 @@ vcpkg/
 *.o
 *.so
 *.a
+
+# Benchmark build artifacts
+benchmarks/results/
+benchmarks/**/target/
+benchmarks/**/out/
+benchmarks/**/obj/
+benchmarks/**/.venv/
+benchmarks/c/server
+benchmarks/go/server
+benchmarks/rust/Cargo.lock
+benchmarks/java/dependency-reduced-pom.xml

@@ -153,6 +153,38 @@ res.getHeader("Content-Type")        // Read header value
 res.hasHeader("X-Custom")            // Check header exists
 ```
 
+#### Streaming Responses
+
+Return a streaming response when the body is large, slow, or open-ended (SSE / NDJSON / log tails). The producer is called repeatedly; each non-empty return is sent as one HTTP/1.1 chunked-transfer chunk. Return `""` to end the body. The server writes headers immediately, then drains the producer — keep-alive is preserved.
+
+```sindarin
+sync var idx: int = 0
+
+fn streamHandler(req: HttpRequest): HttpResponse =>
+    idx = 0
+    return HttpResponse.stream(fn(): str =>
+        if idx >= 10 =>
+            return ""
+        idx += 1
+        return $"chunk {idx}\n"
+    )
+```
+
+For Server-Sent Events, `HttpResponse.sse(producer)` is `stream()` with the right `Content-Type: text/event-stream`, `Cache-Control: no-cache`, and `X-Accel-Buffering: no` headers preset. Producers should return well-formed `data: ...\n\n` frames.
+
+```sindarin
+fn sseHandler(req: HttpRequest): HttpResponse =>
+    return HttpResponse.sse(fn(): str =>
+        # Wait for next event from your queue / source
+        var ev: str = nextEvent()
+        if ev == "" =>
+            return ""
+        return $"data: {ev}\n\n"
+    )
+```
+
+> **Note:** pass a lambda (`fn(): str => ...`), not a bare top-level function reference. The producer is captured into the response struct; closures and raw function pointers have different ABI shapes and the latter will crash when the response is copied internally.
+
 ### Router
 
 Route requests to handlers based on method and path patterns.

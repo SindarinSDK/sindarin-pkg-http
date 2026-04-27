@@ -18,12 +18,22 @@ struct ResponseHeader =>
 # HttpResponse Structure
 # ==============================================================================
 
+# Sentinel producer used when a response is not streaming. Returns "" so
+# the server's drain loop terminates immediately if it ever runs.
+fn _emptyBodyProducer(): str =>
+  return ""
+
 struct HttpResponse =>
   statusCode: int
   statusText: str
   version: str
   headers: ResponseHeader[]
   body: str
+  # When streaming is true, the server writes headers immediately, then
+  # repeatedly calls bodyProducer (each non-empty return is sent as one
+  # HTTP/1.1 chunked-transfer chunk). Producer returns "" to end the body.
+  streaming: bool
+  bodyProducer: fn(): str
 
   # ==========================================================================
   # Static Factory Methods
@@ -35,8 +45,35 @@ struct HttpResponse =>
       statusText: HttpStatus.text(code),
       version: "HTTP/1.1",
       headers: {},
-      body: ""
+      body: "",
+      streaming: false,
+      bodyProducer: _emptyBodyProducer
     }
+    return res
+
+  # Stream the response body. The producer is called repeatedly; each
+  # non-empty return is sent as a single chunked-transfer chunk. Return ""
+  # to signal end-of-body. Content-Length is omitted and Transfer-Encoding:
+  # chunked is added automatically by the server.
+  #
+  # NOTE: pass a lambda (`fn(): str => ...`), not a bare top-level function
+  # reference. The bodyProducer field is round-tripped through struct copies
+  # in the server's response-handling path, which assumes closure layout.
+  static fn stream(producer: fn(): str): HttpResponse =>
+    var res: HttpResponse = HttpResponse.new(200)
+    res.streaming = true
+    res.bodyProducer = producer
+    return res
+
+  # Server-Sent Events. Convenience over stream() that sets the right
+  # Content-Type and disables intermediate buffering. The producer should
+  # return well-formed SSE frames (`data: ...\n\n`); empty string ends the
+  # stream.
+  static fn sse(producer: fn(): str): HttpResponse =>
+    var res: HttpResponse = HttpResponse.stream(producer)
+    res.setHeader("Content-Type", "text/event-stream")
+    res.setHeader("Cache-Control", "no-cache")
+    res.setHeader("X-Accel-Buffering", "no")
     return res
 
   # ==========================================================================
@@ -151,20 +188,24 @@ struct HttpResponse =>
   # Serialization Methods
   # ==========================================================================
 
-  fn toString(): str =>
+  # Status line + headers + terminating blank line. No body.
+  # Server uses this directly when streaming so it can write the body
+  # in chunks afterwards.
+  fn headersToString(): str =>
     var result: str = ""
     result = $"{self.version} {self.statusCode} {self.statusText}\r\n"
 
-    if self.body.length > 0 && !self.hasHeader("Content-Length") =>
+    if !self.streaming && self.body.length > 0 && !self.hasHeader("Content-Length") =>
       result = result + $"Content-Length: {self.body.length}\r\n"
 
     for h in self.headers =>
       result = result + $"{h.name}: {h.value}\r\n"
 
     result = result + "\r\n"
-    result = result + self.body
-
     return result
+
+  fn toString(): str =>
+    return self.headersToString() + self.body
 
   fn toBytes(): byte[] =>
     return self.toString().toBytes()

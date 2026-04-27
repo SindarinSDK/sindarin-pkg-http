@@ -2,6 +2,8 @@
 # server.sn - HTTP Server
 # ==============================================================================
 # A multithreaded HTTP/1.1 server with generic transport support.
+# Supports keep-alive, request size limits, and chunked-transfer streaming
+# responses (HttpResponse.stream / HttpResponse.sse).
 #
 # Usage:
 # import "server"
@@ -10,8 +12,15 @@
 # fn homeHandler(req: HttpRequest): HttpResponse =>
 # return HttpResponse.ok().html("<h1>Hello World</h1>")
 #
+# # Streaming response — the producer is drained chunk-by-chunk and each
+# # non-empty return is sent as one HTTP/1.1 chunked-transfer chunk.
+# # Return "" to end the body. Use HttpResponse.sse(producer) for SSE.
+# fn liveHandler(req: HttpRequest): HttpResponse =>
+# return HttpResponse.stream(fn(): str => nextLogLine())
+#
 # var router: Router = Router.new()
 # router.get("/", homeHandler)
+# router.get("/live", liveHandler)
 #
 # var listener: TcpListener = TcpListener.bind(":8080")
 # var server: HttpServer<TcpStream> = HttpServer<TcpStream>.new(router)
@@ -155,8 +164,31 @@ struct HttpServer < S: NetStream > =>
       else =>
         response.setHeader("Connection", "close")
 
-      var responseBytes: byte[] = response.toBytes()
-      client.write(responseBytes)
+      if response.streaming =>
+        # Force chunked transfer-encoding and strip any caller-supplied
+        # Content-Length — the two are mutually exclusive in HTTP/1.1.
+        response.setHeader("Transfer-Encoding", "chunked")
+        var newHeaders: ResponseHeader[] = {}
+        for h in response.headers =>
+          if h.name.toLower() != "content-length" =>
+            newHeaders.push(h)
+        response.headers = newHeaders
+
+        client.write(response.headersToString().toBytes())
+
+        while true =>
+          var chunk: str = response.bodyProducer()
+          if chunk.length == 0 =>
+            break
+          var hexSize: str = intToHex(chunk.length)
+          client.write($"{hexSize}\r\n".toBytes())
+          client.write(chunk.toBytes())
+          client.write("\r\n".toBytes())
+
+        client.write("0\r\n\r\n".toBytes())
+      else =>
+        var responseBytes: byte[] = response.toBytes()
+        client.write(responseBytes)
 
     client.dispose()
     activeConnections--
@@ -208,6 +240,21 @@ struct HttpServer < S: NetStream > =>
 # ==============================================================================
 # Helper Functions
 # ==============================================================================
+
+# Lowercase hex encoding of a non-negative int. HTTP/1.1 chunked
+# transfer-encoding requires each chunk to be prefixed with its size in
+# hex (RFC 7230 §4.1), so we need this in the streaming write path.
+fn intToHex(n: int): str =>
+  if n == 0 =>
+    return "0"
+  var digits: str = "0123456789abcdef"
+  var result: str = ""
+  var v: int = n
+  while v > 0 =>
+    var d: int = v % 16
+    result = digits.substring(d, d + 1) + result
+    v = v / 16
+  return result
 
 fn parseContentLength(data: str): int =>
   var lines: str[] = data.split("\r\n")

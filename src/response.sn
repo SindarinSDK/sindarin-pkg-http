@@ -54,11 +54,8 @@ struct HttpResponse =>
   # Stream the response body. The producer is called repeatedly; each
   # non-empty return is sent as a single chunked-transfer chunk. Return ""
   # to signal end-of-body. Content-Length is omitted and Transfer-Encoding:
-  # chunked is added automatically by the server.
-  #
-  # NOTE: pass a lambda (`fn(): str => ...`), not a bare top-level function
-  # reference. The bodyProducer field is round-tripped through struct copies
-  # in the server's response-handling path, which assumes closure layout.
+  # chunked is added automatically by the server. Producer can be either a
+  # lambda (`fn(): str => ...`) or a bare top-level function reference.
   static fn stream(producer: fn(): str): HttpResponse =>
     var res: HttpResponse = HttpResponse.new(200)
     res.streaming = true

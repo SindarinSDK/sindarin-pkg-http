@@ -13,35 +13,37 @@ import "sindarin-pkg-threads/src/shutdown_signal"
 # Producer state for /stream — yields three text chunks then EOF.
 sync var streamIdx: int = 0
 
+fn streamProducer(): str =>
+  if streamIdx == 0 =>
+    streamIdx = 1
+    return "alpha "
+  if streamIdx == 1 =>
+    streamIdx = 2
+    return "beta "
+  if streamIdx == 2 =>
+    streamIdx = 3
+    return "gamma"
+  return ""
+
 fn streamHandler(req: HttpRequest): HttpResponse =>
   streamIdx = 0
-  return HttpResponse.stream(fn(): str =>
-    if streamIdx == 0 =>
-      streamIdx = 1
-      return "alpha "
-    if streamIdx == 1 =>
-      streamIdx = 2
-      return "beta "
-    if streamIdx == 2 =>
-      streamIdx = 3
-      return "gamma"
-    return ""
-  )
+  return HttpResponse.stream(streamProducer)
 
 # Producer state for /events — yields two SSE frames.
 sync var sseIdx: int = 0
 
+fn sseProducer(): str =>
+  if sseIdx == 0 =>
+    sseIdx = 1
+    return "data: first\n\n"
+  if sseIdx == 1 =>
+    sseIdx = 2
+    return "data: second\n\n"
+  return ""
+
 fn sseHandler(req: HttpRequest): HttpResponse =>
   sseIdx = 0
-  return HttpResponse.sse(fn(): str =>
-    if sseIdx == 0 =>
-      sseIdx = 1
-      return "data: first\n\n"
-    if sseIdx == 1 =>
-      sseIdx = 2
-      return "data: second\n\n"
-    return ""
-  )
+  return HttpResponse.sse(sseProducer)
 
 # Decode a chunked-transfer body. Input is the bytes after \r\n\r\n.
 # Returns the concatenated chunk payloads.

@@ -183,8 +183,6 @@ fn sseHandler(req: HttpRequest): HttpResponse =>
     )
 ```
 
-> **Note:** pass a lambda (`fn(): str => ...`), not a bare top-level function reference. The producer is captured into the response struct; closures and raw function pointers have different ABI shapes and the latter will crash when the response is copied internally.
-
 ### Router
 
 Route requests to handlers based on method and path patterns.

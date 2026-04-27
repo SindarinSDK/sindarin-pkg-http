@@ -174,18 +174,35 @@ struct HttpServer < S: NetStream > =>
             newHeaders.push(h)
         response.headers = newHeaders
 
-        client.write(response.headersToString().toBytes())
+        # client.write returns -1 when the peer has closed (TcpStream
+        # surfaces the broken-pipe / connection-reset case). On any
+        # negative return we abandon the stream — keeping the producer
+        # spinning would burn work (eg. driving an LLM) writing into a
+        # dead socket. keepAlive is forced off so the outer loop tears
+        # the connection down cleanly.
+        var aborted: bool = false
+        if client.write(response.headersToString().toBytes()) < 0 =>
+          aborted = true
 
-        while true =>
+        while !aborted =>
           var chunk: str = response.bodyProducer()
           if chunk.length == 0 =>
             break
           var hexSize: str = intToHex(chunk.length)
-          client.write($"{hexSize}\r\n".toBytes())
-          client.write(chunk.toBytes())
-          client.write("\r\n".toBytes())
+          if client.write($"{hexSize}\r\n".toBytes()) < 0 =>
+            aborted = true
+            break
+          if client.write(chunk.toBytes()) < 0 =>
+            aborted = true
+            break
+          if client.write("\r\n".toBytes()) < 0 =>
+            aborted = true
+            break
 
-        client.write("0\r\n\r\n".toBytes())
+        if !aborted =>
+          client.write("0\r\n\r\n".toBytes())
+        else =>
+          keepAlive = false
       else =>
         var responseBytes: byte[] = response.toBytes()
         client.write(responseBytes)

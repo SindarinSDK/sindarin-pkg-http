@@ -45,17 +45,13 @@ fn extractId(path: str): int =>
 
 # Encode an Item to JSON using FastJson
 fn encodeItem(item: Item): str =>
-  var enc: Encoder = Json.encoder()
-  item.encode(enc)
-  return enc.result()
+  return item.encode(Json.encoder())
 
 # GET /items - List all items (read lock — concurrent)
 fn listItems(req: HttpRequest): HttpResponse =>
   var body: str
   itemsRw.readLock()
-  var enc: Encoder = Json.arrayEncoder()
-  Item.encodeArray(items, enc)
-  body = enc.result()
+  body = Item.encodeArray(items, Json.arrayEncoder())
   itemsRw.readUnlock()
   return HttpResponse.ok().json(body)
 
